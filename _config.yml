@@ -18,18 +18,20 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: mp1994's homepage
+title: mattically
 email: mattia.pesenti@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"
- Tech-related Random Access Memories 
+ Tech-related Random Access Memories and other stuff I like.
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 github_username:  mp1994
 
 # Build settings
-theme: minima
+#theme: minima
+remote-theme: pages-themes/cayman@v0.2.0
 plugins:
   - jekyll-feed
+  - jekyll-remote-theme 
 
 # Exclude from processing.
 # The following items will not be processed, by default.
