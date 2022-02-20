@@ -18,13 +18,15 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
+# run locally with: bundle exec jekyll serve -wl
+
 title: mattically
 email: mattia.pesenti@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"
  Tech-related Random Access Memories and other stuff I like.
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
-github_username:  mp1994
+github_username: mp1994
 
 # Build settings
 #theme: minima

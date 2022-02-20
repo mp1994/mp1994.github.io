@@ -3,14 +3,15 @@
 # To modify the layout, see https://jekyllrb.com/docs/themes/#overriding-theme-defaults
 
 layout: default
-title: Blog
+title: Home
 ---
 
-<body>
+<html>
   {% for post in site.posts %}
     
       <h2><a href="{{ post.url }}">{{ post.title }}</a></h2>
-      {{ post.excerpt }}
+      {{ post.content | truncatewords: 100 }}
     
   {% endfor %}
-</body>
+
+<hr/>
