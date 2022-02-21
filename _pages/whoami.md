@@ -12,7 +12,7 @@ So, this is it. After a very long time _offline_, I finally went back to bloggin
 mp1994.get_whoami()
 ```
 
-I am Mattia, ```$year - 1994``` years old, from Milan, Italy. I am biomedical engineer, and I am currently a PhD Student in Bioengineering at the _Politecnico di Milano_. But I don't think I will talk about this here.
+I am Mattia, `$year - 1994` years old, from Milan, Italy. I am biomedical engineer, and I am currently a PhD Student in Bioengineering at the _Politecnico di Milano_. But I don't think I will talk about this here.
 
 I am a tech enthusiast, petrolhead, meme enjoyer. I have a thing for _The Office_. You can find me on TV Time (mp.1994) to check out what other shows I like. I started this blog mainly to support some projects that I recently started to publish on my <a href="https://github.com/mp1994/">Github</a>. Speaking of which, for now I am ending this page (I feel I've already talked too much about me) with my GitHub chart [1].
 
