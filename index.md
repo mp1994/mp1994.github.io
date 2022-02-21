@@ -2,7 +2,7 @@
 layout: home
 ---
 
-Make Jelly site have a GitBook look!
+_According to Matti_... Tech-related random-access memories.
 
 ## Demo
 
