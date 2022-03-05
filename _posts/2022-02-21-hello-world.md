@@ -7,4 +7,4 @@ layout: post
 published: true
 ---
 
-Hello, world!
+_Hello, world!_ Here is it. You can find out more about me [here]({{site.url}}/pages/whoami). Nothing much to say here.
