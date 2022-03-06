@@ -1,0 +1,11 @@
+
+<div class="post-date">
+    <br/>
+    <span class="post-date" style="color:#80a7ff">
+        Published on {{ page.date | date: "%B %-d, %Y" }} 
+        {% if page.date != {% last_modified {{post.path}}} %}
+        --- Last modified {% last_modified {{post.path}} %} 
+        {% endif %}
+    </span>
+    <br/><br/>
+</div>
