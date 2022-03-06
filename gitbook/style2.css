@@ -1,0 +1,35 @@
+.code-header {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.copy-code-button {
+    position: relative;
+    top: 40px;
+    left: -20px;
+    display: grid;
+    grid-auto-flow: column;
+    align-items: center;
+    border: none;
+    cursor: pointer;
+    font-size: 9pt;
+    padding: 8px 12px;
+    font-family: sans-serif;
+
+}
+
+.copy-code-button::before{
+    content: "Copy";
+}
+
+.copy-code-button::after{
+    content: "";
+}
+
+.copy-code-button.copied::before{
+    content: "";
+}
+
+.copy-code-button.copied::after{
+    content: "✔️";
+}
