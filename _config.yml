@@ -54,3 +54,7 @@ regenerate:       true
 plugins:
   - jekyll-feed
   - jemoji
+  - jekyll-last-modified-at
+
+last-modified-at:
+    date-format: '%B %-d, %Y'
