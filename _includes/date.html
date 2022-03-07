@@ -1,10 +1,11 @@
 <div class="post-date">
+    {% assign t0 = page.date | date: "%Y%B%d" %}
+    {% assign t1 = page.last_modified_at | date: "%Y%B%d" %}
     <br/>
     <span class="post-date" style="color:#80a7ff">
         Published on {{ page.date | date: "%B %-d, %Y" }} 
-        {% if page.date != {% last_modified_at %}
-        --- Last modified {% last_modified_at %}
+        {% if t1 != t0 %}
+        --- Last modified {{page.last_modified_at | date: "%B %-d, %Y"}}
         {% endif %}
     </span>
-    <br/><br/>
 </div>
