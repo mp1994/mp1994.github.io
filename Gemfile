@@ -8,10 +8,8 @@ gem 'jekyll-feed'
 gem 'jemoji'
 gem 'webrick'
 
-require rugged
-
 # gem "rails"
-gem 'github-linguist'
+gem 'github-linguist', require: 'rugged'
 
 group :jekyll_plugins do
     gem "jekyll-last-modified-at"
