@@ -9,8 +9,8 @@ gem 'jemoji'
 gem 'webrick'
 
 # gem "rails"
-gem 'rugged'
-gem 'github-linguist'
+# gem 'rugged'
+# gem 'github-linguist'
 
 group :jekyll_plugins do
     gem "jekyll-last-modified-at"
