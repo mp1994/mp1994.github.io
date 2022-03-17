@@ -8,6 +8,8 @@ gem 'jekyll-feed'
 gem 'jemoji'
 gem 'webrick'
 
+require rugged
+
 # gem "rails"
 gem 'github-linguist'
 
