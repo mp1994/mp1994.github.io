@@ -36,6 +36,7 @@ Device             Start       End   Sectors   Size Type
 
 We can identify the Windows partition as the one with the label `nvme0n1p4`. Now we need to create two files: one (100 MB) to hold the partition table and the EFI partition, and the second one (1 MB) to hold a backup of the partition table. Then, we can create a loop device to associate to each of these files with `losetup`:
 
+{% include codeHeader.html %}
 ``` bash
 dd if=/dev/zero of=$HOME/efi1 bs=1M count=100
 dd if=/dev/zero of=$HOME/efi2 bs=1M count=1
@@ -47,12 +48,14 @@ sudo losetup ${LOOP2} $HOME/efi2
 
 The creation of the files `ef1` and `efi2` is a one-time procedure, while the `losetup` needs to be run every time we want to boot the VM. Finally, we can merge all these with the physical partition (`/dev/nvme0n1p4`) and create the RAID array:
 
+{% include codeHeader.html %}
 ``` bash
 sudo mdadm --build --verbose /dev/md0 --chunk=512 --level=linear --raid-devices=3 ${LOOP1} /dev/nvme0n1p4 ${LOOP2}
 ```
 
 Another one-time-only step is to create the partition table in the virtual RAID disk. We can do this with `parted`:
 
+{% include codeHeader.html %}
 ``` bash
 sudo parted /dev/md0
 (parted) unit s
@@ -69,6 +72,7 @@ sudo parted /dev/md0
 
 With these commands, we have created the EFI partition `/dev/md0p1` and the Windows partition `/dev/md0p2`. We need to format the EFI partition with: 
 
+{% include codeHeader.html %}
 ``` bash
 sudo mkfs.msdos -F 32 -n EFI /dev/md0p1
 ```
@@ -89,6 +93,7 @@ Specify the mdadm array we created before as the existing drive path, i.e., `/de
 
 You can find my configuration at this [Gist](https://gist.github.com/mp1994/9c245095105dcdc73b7b7d158684a4ff#file-win10-xml). I especially recommend the following configuration blocks. For the CPU, the best setting is `host-passthrough`:
 
+{% include codeHeader.html %}
 ``` xml
 <cpu mode='host-passthrough' check='none'>
     <topology sockets='1' cores='4' threads='2'/>
@@ -97,6 +102,7 @@ You can find my configuration at this [Gist](https://gist.github.com/mp1994/9c24
 
 Next, we may change the clock configuration: 
 
+{% include codeHeader.html %}
 ``` xml
 <clock offset='localtime'>
   <timer name='hpet' present='yes'/>
@@ -110,6 +116,7 @@ You can also check [this guide](https://github.com/Fmstrat/winapps/blob/main/doc
 
 In the MDADM drive array we created before, we have wrapped the physical Windows partition with a virtual EFI/UEFI partition. Hence, we need to have a virtual EFI firmware on our computer. We are going to use OVMF for this purpose. First, check the `os` tag of the XML configuration and make sure the VM is using OVMF. 
 
+{% include codeHeader.html %}
 ``` xml
 <os>
     <type arch='x86_64' machine='pc-i440fx-bionic'>hvm</type>
@@ -123,6 +130,7 @@ The loader (i.e., the virtual EFI firmware) is the file `OVMF_CODE.fd`. The seco
 
 Make sure you have your SATA CDROM1 at the top of the Boot Options and click on "Begin Installation". The machine should boot to the Windows installation disk. We need to assign a letter to the EFI partition to make the VM boot. If you followed the [previous post](/_posts/2022-03-05-winux.md), you should already have Windows installed. We just need to assign a letter to the EFI partition with `ðiskpart`. To do this, press `Shift+F10` to open up a Windows terminal.
 
+{% include codeHeader.html %}
 ``` bash
 diskpart
 DISKPART> list disk
@@ -135,6 +143,7 @@ DISKPART> exit
 
 The last touch is to copy the BCD boot entry for the Windows partition to the volume we just created. From the same terminal, we can run:
 
+{% include codeHeader.html %}
 ``` 
 bcdboot C:\Windows /s B: /f ALL
 ```
@@ -145,6 +154,7 @@ We can now shutdown the machine, remove the Windows ISO and boot again. Finally 
 
 In case of trouble, you may debug your setup by launching directly QEMU from the terminal, by-passing `virt-manager`:
 
+{% include codeHeader.html %}
 ``` bash
 qemu-system-x86_64 \
     -bios /usr/share/OVMF/OVMF_CODE.fd           \  # Use OVMF
