@@ -49,7 +49,7 @@ collections:
 
 # destination:      ./_site
 incremental:      true            # This should fix the weird behavior of "last-modified-at" on the remote server
-# regenerate:       true
+regenerate:       false
 
 plugins:
   - jekyll-feed
