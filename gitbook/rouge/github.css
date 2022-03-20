@@ -18,7 +18,7 @@
   font-style: italic;
 }
 .highlight .c, .highlight .ch, .highlight .cd, .highlight .cpf {
-  color: #999988;
+  color: #133807;
   font-style: italic;
 }
 .highlight .err {
@@ -145,13 +145,13 @@
   color: #d14;
 }
 .highlight .na {
-  color: #008080;
+  color: #004b4b;
 }
 .highlight .bp {
   color: #999999;
 }
 .highlight .nb {
-  color: #0086B3;
+  color: #1f45c0;
 }
 .highlight .nc {
   color: #445588;
@@ -195,7 +195,7 @@
   color: #008080;
 }
 .highlight .nv, .highlight .vm {
-  color: #008080;
+  color: #470e6d;
 }
 .highlight .ow {
   color: #000000;
