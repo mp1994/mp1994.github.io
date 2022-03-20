@@ -12,13 +12,14 @@ If you are familiar with a dual-boot configuration, you must have wondered at le
 
 Please mind that this is not rocket science. It also isn't something new. Yet, I remember I had to struggle a bit to get this working, and I could not find much online, so I hope this is helpful.
 
-Long-story short: yes, we can do this. We can virtualize the Windows partition from Linux. I.e., we can create a virtual machine and use the existing Windows partition as the drive for the VM. When I started off, I was familiar only with VirtualBox. Turns out it is not that hard to make it working: you just have to create a virtual disk that points both to the Windows partition and to the UEFI partition for boot. You can check out this post (coming soon) if you prefer to use VirtualBox.
+**Long-story short: yes, we can do this**. We can virtualize the Windows partition from Linux. I.e., we can create a virtual machine and use the existing Windows partition as the drive for the VM. When I started off, I was familiar only with VirtualBox. Turns out it is not that hard to make it working: you just have to create a virtual disk that points both to the Windows partition and to the UEFI partition for boot. You can check out _this post_ if you prefer to use VirtualBox (coming soon; in the meantime, [check this out](https://www.anginf.de/?p=685)).
 
-Today, we are going to set this up using KVM and QEMU. **KVM** stands for **Kernel Virtual Machine**. The main advantage of KVM is performance. In short, "<span style="color:#1d71d1">KVM converts Linux into a type-1 (bare-metal) hypervisor"</span>. Hence, KVM can take advantage of the Linux kernel's memory controller, process scheduler, I/O stack, network stack, and so on. This allows much higher performance with less over-head compared to a type-2 hypervisor (e.g., VirtualBox).
+Today, we are going to set this up using KVM and QEMU. **KVM** stands for **Kernel Virtual Machine**. The main advantage of KVM is performance. In short, <span style="color:#1d71d1">_"KVM converts Linux into a type-1 (bare-metal) hypervisor"_</span>. Hence, KVM can take advantage of the Linux kernel's memory controller, process scheduler, I/O stack, network stack, and so on. This allows [much higher performance](https://www.phoronix.com/scan.php?page=article&item=virtualbox-60-kvm&num=1) with less over-head compared to a type-2 hypervisor (e.g., VirtualBox).
 
 ### Building the virtual disk
 
-We are going to use `mdadm` to create and manage the virtual RAID array. First, we need to check how our disk is structured. Please mind that here we are consindering a single-disk dual boot setup. We can use `fdisk -l <disk>` to check our disk. Here is how the output looks like in my case.
+We are going to use `mdadm` to create and manage the virtual RAID array. First, we need to check how our disk is structured. Please mind that here we are consindering a single-disk dual boot setup. <br/>
+We can use `fdisk -l <disk>` to check our disk. Here is how the output looks like in my case.
 
 ``` 
 $ fdisk -l /dev/nvme0n1
@@ -46,11 +47,12 @@ LOOP2=$(sudo losetup -f)
 sudo losetup ${LOOP2} $HOME/efi2
 ```
 
-The creation of the files `ef1` and `efi2` is a one-time procedure, while the `losetup` needs to be run every time we want to boot the VM. Finally, we can merge all these with the physical partition (`/dev/nvme0n1p4`) and create the RAID array:
+The creation of the files `ef1` and `efi2` is a one-time procedure, while `losetup` needs to be run every time we want to boot the VM. Finally, we can merge all these with the physical partition (`/dev/nvme0n1p4`) and create the RAID array:
 
 {% include codeHeader.html %}
 ``` bash
-sudo mdadm --build --verbose /dev/md0 --chunk=512 --level=linear --raid-devices=3 ${LOOP1} /dev/nvme0n1p4 ${LOOP2}
+sudo mdadm --build --verbose /dev/md0 --chunk=512 \
+--level=linear --raid-devices=3 ${LOOP1} /dev/nvme0n1p4 ${LOOP2}
 ```
 
 Another one-time-only step is to create the partition table in the virtual RAID disk. We can do this with `parted`:
@@ -81,13 +83,13 @@ The `mdadm` array is built and ready to be used. As a last step, we need to chan
 
 ### Creating a KVM with virt-manager
 
-We are going to use **virt-manager** ([Virtual Machine Manager](https://virt-manager.org/)) to handle our QEMU/KVM virtual machine. The virt-manager application allows both GUI-based and XML-based configuration and uses `libvirt` for KVM machines. You can install with your packet manager, or from [source](https://virt-manager.org/download/). Please mind that depending on your distribution, you may get an older version. For example, `sudo apt install virt-manager` installs version `1.5.1` on Ubuntu 18.04 LTS, while the latest is `4.0.0` at the time of writing.
+We are going to use **virt-manager** ([Virtual Machine Manager](https://virt-manager.org/)) to handle our QEMU/KVM virtual machine. The virt-manager application allows both GUI-based and XML-based configuration and uses `libvirt` for KVM machines. You can install with your packet manager, or from [source](https://virt-manager.org/download/). Please mind that depending on your distribution, you may get an older version. For example, `sudo apt install virt-manager` installs version `1.5.1` on Ubuntu 18.04 LTS, while the latest is `4.0.0` at the time of writing. The biggest difference I have noticed regards XML editing: newer versions have an embedded editor. For older versions, you need to `virsh edit <VM_NAME>` from the terminal.
 
 Launch virt-manager to create the virtual machine. We are going to need the Windows ISO even if we already have it installed in our partition. Make sure that "Connection" is QEMU/KVM and select "Import existing disk image", as shown in the screenshot below.
 
 ![New VM](/assets/img/NewVM_KVM_1.png)
 
-Specify the mdadm array we created before as the existing drive path, i.e., `/dev/md0`. You can go further with the configuration. At the end, make sure to select "Customize configuration before install" before clicking on "Finish". Now we can further customize the VM. I recommend adding the Windows 10 ISO (Add Hardware > Storage), as we will need it for the first boot. You may also edit the default configuration as you like.
+Specify the virtual RAID array we created before as the existing drive path, i.e., `/dev/md0`. You can go further with the configuration. At the end, make sure to select "Customize configuration before install" before clicking on "Finish". Now we can further customize the VM. I recommend adding the Windows 10 ISO (Add Hardware > Storage), as we will need it for the first boot. You may also edit the default configuration as you like.
 
 ![Add CDROM](/assets/img/AddCD_2.png)
 
@@ -126,7 +128,7 @@ In the MDADM drive array we created before, we have wrapped the physical Windows
 </os>
 ```
 
-The loader (i.e., the virtual EFI firmware) is the file `OVMF_CODE.fd`. The second file is for virtual RAM. You may check your paths with `find / -name "OVMF_*" 2>/dev/null`. If you can't find it, you can install it with your packet manager (e.g., `sudo apt install ovmf`). In case of issue, checkout this [guide](https://github.com/tianocore/tianocore.github.io/wiki/How-to-run-OVMF).
+The loader (i.e., the virtual EFI firmware) is the file `OVMF_CODE.fd`. The second file is for virtual RAM. You may check your paths with `find / -name "OVMF_*" 2>/dev/null`. If you can't find it, you can install it with your packet manager (e.g., `sudo apt install ovmf`). In case of issues, checkout this [guide](https://github.com/tianocore/tianocore.github.io/wiki/How-to-run-OVMF).
 
 Make sure you have your SATA CDROM1 at the top of the Boot Options and click on "Begin Installation". The machine should boot to the Windows installation disk. We need to assign a letter to the EFI partition to make the VM boot. If you followed the [previous post](/_posts/2022-03-05-winux.md), you should already have Windows installed. We just need to assign a letter to the EFI partition with `ðiskpart`. To do this, press `Shift+F10` to open up a Windows terminal.
 
