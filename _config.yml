@@ -48,8 +48,8 @@ collections:
     permalink: /:collection/:path/
 
 # destination:      ./_site
-incremental:      false
-regenerate:       true
+incremental:      true            # This should fix the weird behavior of "last-modified-at" on the remote server
+# regenerate:       true
 
 plugins:
   - jekyll-feed
