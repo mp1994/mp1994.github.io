@@ -50,9 +50,20 @@ In the configuration, `vcpu` is the virtual CPU ID for the guest, while `cpuset`
 
 ### Frequency Scaling
 
-Modern CPUs do not run with a fixed clock frequency. They have a base clock, a minimum and a maximum (or turbo) frequency. Frequency modulation is a clever solution for the trade off between power saving and performance. These days, things are getting more and more complicated (partially because of nonsense marketing terminology). Let's define the following: the *minimum frequency* is the lowest the CPU settles to at idle. This is 800 MHz on my Intel i7-10510U. Then, there is the `nominal frequency`, 1800 MHz in my case: let's say this is the minimum frequency to which the CPU should be when *not* at idle. Depending on thermal headroom and load, the CPU frequency can increase in steps: the first step is the *regular turbo* frequency (2300 MHz), up to the *absolute maximum turbo* frequency (4900 MHz). The latter is the physical limit of the CPU and may be reached only for brief bursts of power. The CPU will be mostly running at the *regular turbo* frequency under sustained loads. This behavior is controlled by the **CPU scaling governor**.
+Modern CPUs do not run at a fixed clock frequency. They have a base clock, a minimum and a maximum (or turbo) frequency. Frequency modulation is a clever solution for the trade off between power saving and performance. These days, things are getting more and more complicated (partially because of nonsense marketing terminology). Let's define the following: the *minimum frequency* is the lowest the CPU settles to at idle. This is 800 MHz on my Intel i7-10510U. Then, there is the *nominal frequency* (or *base* frequency), 1800 MHz in my case: let's say this is the minimum frequency to which the CPU should be when *not* at idle. Depending on thermal headroom and load, the CPU frequency can increase in steps: the first step is the *multi-core regular turbo* frequency (2300 MHz), up to the *absolute maximum turbo* frequency (4900 MHz). The latter is often a single-core peak that may be reached only for brief bursts of power. The CPU will be mostly running at the *regular turbo* frequency under sustained, multi-core loads. This behavior is controlled by the **CPU scaling governor**. 
+Modern Intel CPUs use the `intel pstate` governor [2]. 
 
---- comments
+Frequency scaling can affect the performance of our virtual machines. Briefly, to assure optimal performance in our KVM guests, we should check whether CPU frequency scales correctly under an increased load from the guest. We can check the current CPU frequency in several ways. The command `lscpu` shows many information about our CPU, including the current frequency. If we want to look at per-core CPU frequency, this is stored in several files (as typically done in Linux). Specifically, this info can be accessed with: 
+
+```
+watch -n1 cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq
+```
+
+The command `watch -n1` will refresh the output of `cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq` every second.
+
+### Benchmarking
+
+<!-- --- comments
 CPU max clock 2400 MHz on Linux with `powersave` governor (nominal: 1800 MHz, "regular" turbo 2300 MHz, max turbo 4900 MHz)
 CPU freq ramps up to >4000 MHz **on idle** with `performance`, and then drops down to 3000 MHz under 100% load (scikit-learn model training) > WTF ??
 Geekbench5 on linux: 733 2875
@@ -62,7 +73,7 @@ Geekbench5 on linux: 733 2875
 https://unix.stackexchange.com/questions/64297/host-cpu-does-not-scale-frequency-when-kvm-guest-needs-it
 https://forums.unraid.net/topic/44961-fps-drops-stuttering-and-other-things-that-make-me-sad/#comment-443617
 https://www.intel.com/content/www/us/en/developer/articles/guide/kvm-tuning-guide-on-xeon-based-systems.html
-https://www.kernel.org/doc/html/latest/admin-guide/pm/intel_pstate.html
+https://www.kernel.org/doc/html/latest/admin-guide/pm/intel_pstate.html -->
 
 <!-- https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Setting_up_IOMMU
 Enable IOMMU ?
@@ -81,5 +92,6 @@ reboot
 test libusb script (link repo github) -->
 
 [1]: https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Performance_tuning
+[2]: https://www.kernel.org/doc/html/v4.12/admin-guide/pm/intel_pstate.html
 
 {% include date.html %}
