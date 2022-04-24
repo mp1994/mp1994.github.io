@@ -1,11 +1,11 @@
 ---
 title: Tuning KVM for Best Performance 
 author: mp1994
-date: 2022-04-16
+date: 2022-04-24
 category: 2boot
 tags: 2boot, dual boot, kvm, linux, vm
 layout: post
-published: false
+published: true
 ---
 
 In the previous posts, we have set up a Kernel Virtual Machine (KVM) with `libvirt` and `qemu`. We have seen how type-I hypervisors allow almost bare-metal performance. With this post, I am going to talk about some tweaking and tuning we can do to further optimize KVM performance.
