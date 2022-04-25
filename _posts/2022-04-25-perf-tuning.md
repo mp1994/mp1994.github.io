@@ -61,6 +61,28 @@ The command `watch -n1` will refresh the output of `cat /sys/devices/system/cpu/
 
 ### Benchmarking
 
+Let us end this post with some benchmarks to quantify CPU performance tuning. I have chosen a very simple and quick benchmark with [Prime95](https://www.mersenne.org/download/). I have chosen Prime95 for two reasons: it is multi-platform, thus it will run both on Linux and Windows, and it allows to select the number of CPU cores to stress test. I will test 3 cores with hyperthreading enabled both on Linux and on the Windows KVM.
+
+I have set up the throughput benchmark with a 2048K FFT for 15 seconds. I have run the test in several configurations:
+
+<ul>
+<li> Default CPU topology: 2 sockets, 1 core, 1 thread (total of 2 vCPUs) </li>
+<li> Manual CPU topology w/o CPU pinning: 1 socket, 3 cores, 2 threads (total of 6 vCPUs) </li>
+<li> Manual CPU topology w/ CPU pinning: 1 socket, 3 cores, 2 threads (total of 6 vCPUs) </li>
+<li> Bare metal on Linux (total of 6 vCPUs) </li>
+<!--<li> Bare metal on Windows (total of 6 vCPUs) </li> -->
+</ul>
+
+Of course, bare-metal performance (267.97 iter/sec) are higher than every KVM configuration. Nevertheless, we notice how manually tweaking CPU topology dramatically improves performance from 66.57 iter/sec up to >200 iter/sec. CPU pinning further improves performance of ~13%. KVM performance with CPU pinning reaches almost 87% of the bare-metal performance. Below the full logs for each configuration.
+
+|   | **Worker 1** [ms] | **Worker 2** [ms] | **Worker 3** [ms] | **Throughput** [iter/s] |
+|:-:|:-----------------:|:-----------------:|:-----------------:|:-----------------------:|
+| 1 |       32.60       |       27.86       |         /         |          66.57          |
+| 2 |       15.47       |       14.41       |       14.22       |          204.31         |
+| 3 |       13.40       |       12.73       |       12.80       |          231.31         |
+| 4 |       14.60       |       14.17       |        7.76       |          267.97         |
+
+
 <!-- --- comments
 CPU max clock 2400 MHz on Linux with `powersave` governor (nominal: 1800 MHz, "regular" turbo 2300 MHz, max turbo 4900 MHz)
 CPU freq ramps up to >4000 MHz **on idle** with `performance`, and then drops down to 3000 MHz under 100% load (scikit-learn model training) > WTF ??
