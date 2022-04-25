@@ -73,7 +73,7 @@ I have set up the throughput benchmark with a 2048K FFT for 15 seconds. I have r
 <!--<li> Bare metal on Windows (total of 6 vCPUs) </li> -->
 </ul>
 
-Of course, bare-metal performance (267.97 iter/sec) are higher than every KVM configuration. Nevertheless, we notice how manually tweaking CPU topology dramatically improves performance from 66.57 iter/sec up to >200 iter/sec. CPU pinning further improves performance of ~13%. KVM performance with CPU pinning reaches almost 87% of the bare-metal performance. Below the full logs for each configuration.
+Of course, bare-metal performance (267.97 iter/sec) are higher than every KVM configuration. Nevertheless, we notice how manually tweaking CPU topology dramatically improves performance from 66.57 iter/sec up to >200 iter/sec. CPU pinning further improves performance of ~13%. KVM performance with CPU pinning reaches almost 87% of the bare-metal performance. Below the full results for each configuration.
 
 |   | **Worker 1** [ms] | **Worker 2** [ms] | **Worker 3** [ms] | **Throughput** [iter/s] |
 |:-:|:-----------------:|:-----------------:|:-----------------:|:-----------------------:|
