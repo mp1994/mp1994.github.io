@@ -8,7 +8,15 @@ layout: post
 published: true
 ---
 
-This guide is to install the PREEMPT RT patch for the Linux kernel.
+This article provides a minimal guide to installing the PREEMPT RT patch for the Linux kernel on a general-purpose computer (Dell XPS 7390). This should work on *any* modern PC/laptop.
+
+### Preamble: Real-Time applications
+Computers may be used to interface or control *real-time systems*, i.e. systems that *must react to an external event like an interrupt within a defined time frame* <a href="https://wiki.linuxfoundation.org/realtime/documentation/start#documentation">[1]</a>.
+Hence, such systems must always respond with a **limited and deterministic delay** to external events. Low-priority tasks must be preempted (i.e., interrupted) to meet such constrained deadlines; such tasks are then completed by the CPU once the higher-priority, real-time task is complete.
+
+The main aim of the PREEMPT_RT patch is to minimize the amount of kernel code that is non-preemptible <a href="https://wiki.linuxfoundation.org/realtime/documentation/technical_details/start">[2]</a>.
+
+A typical real-time application is running a control loop at a specific frequency. Kernel-level preemption allows the CPU to execute the loop at the specified rate (below a certain limit). Moreover, the PREEMPT_RT patch also enables high-resolution timers allowing precise timed scheduling.
 
 ### 1- Install required tools
 {% include codeHeader.html %}
@@ -91,7 +99,7 @@ vmlinuz-5.4.19-rt11preempt
 We can now reboot and select the RT kernel from GRUB. To verify all is set correctly, we can check the output of `uname -a` and verify that `cat /sys/kernel/realtime` returns `1`.
 
 #### Note 1: UEFI and Secure Boot
---- to do
+Modern systems equipped with UEFI firmware (i.e., the *new* BIOS) often have secure boot enabled by default. This means that the system will boot only if the kernel is signed. This may be tricky to achieve when building our own kernel, as in this case. I therefore suggest to disable secure boot (especially in case of boot issues after trying out this guide).
 
 #### Note 2: RT permissions
 It may be handy to allow the user to set real-time permissions to executable without needing root permission (i.e., without `sudo`). We can 
