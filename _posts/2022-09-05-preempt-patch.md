@@ -37,7 +37,7 @@ mkdir kernel && cd kernel
 
 ### 3- Download the kernel and the corresponding patch
 This guide was written after patching kernel `v5.4.19` with the PREEMPT RT patch version `rt-11`. We can download the kernel 
-and the patch using `wget`, or browsing https://mirrors.edge.kernel.org/pub/linux/kernel/ and https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/, respectively.
+and the patch using `wget`, or browsing the public repository for the <a href="https://mirrors.edge.kernel.org/pub/linux/kernel/">kernel</a> and the <a href="https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/">patch</a>, respectively.
 {% include codeHeader.html %}
 ``` bash
 wget https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.19.tar.xz
@@ -53,13 +53,15 @@ cd linux-*/
 patch -p1 < ../patch-*.patch
 ```
 
+The commands above use the regex wildcard `*` and thus will work independently of the version we are patching.
+
 ### 5- Configure the kernel
 First, we are going to copy our current configuration from the boot partition
 {% include codeHeader.html %}
 ``` bash
 cp -v /boot/config-$(uname -r) .config
 ```
-In the command above, $(uname -r) expands to the current kernel version (e.g., `5.4.0-124-generic` in my case) and copies it to the local file `.config`.
+In the command above, `$(uname -r)` expands to the current kernel version (e.g., `5.4.0-124-generic` in my case) and copies it to the local file `.config`.
 Now, we need to configure the kernel. Specifically, we need to set the preemption model to enable the full real-time capability.
 
 {% include codeHeader.html %}
@@ -77,7 +79,7 @@ The latest command will open a TUI (terminal user interface): navigate with the 
 
 Save to `.config` and exit.
 
-### 6- Build the kernel as with `dpkg`
+### 6- Build the kernel as a Debian package and install with `dpkg`
 {% include codeHeader.html %}
 ``` bash
 make -j$(nproc) deb-pkg
