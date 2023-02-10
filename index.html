@@ -1,0 +1,323 @@
+<!DOCTYPE HTML>
+<html lang="en" >
+    <head><meta charset="UTF-8">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type"><title>Mattically</title><meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="description" content="Tech-related random-access memories
+"><meta name="generator" content="Jekyll (using style of GitBook 3.2.3)"><meta name="author" content="Mattia Pesenti"><link rel="stylesheet" href="https://mp1994.github.io/gitbook/style.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/website.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.css">
+
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/rouge/github.css">
+
+<meta name="HandheldFriendly" content="true"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon-precomposed" sizes="152x152" href="https://mp1994.github.io/gitbook/images/apple-touch-icon-precomposed-152.png">
+<link rel="shortcut icon" href="https://mp1994.github.io/gitbook/images/favicon.ico" type="image/x-icon">
+
+<script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']]
+        },
+        svg: {
+            fontCache: 'global'
+        }
+    };
+</script>
+
+
+        
+            <link rel="next" href="https://mp1994.github.io/meta/2022-02-21-hello-world.html" />
+        
+    </head>
+    <body>
+        <div class="book"><div class="book-summary">
+    <div id="book-search-input" role="search">
+        <input type="text" placeholder="Type to search" />
+    </div>
+    <nav role="navigation">
+        <ul class="summary">
+            
+            <li class="chapter active" data-level="1.1" data-path="https://mp1994.github.io">
+            
+                <a href="https://mp1994.github.io/">
+                    Mattically
+                </a>
+            </li>
+
+            <li class="divider"></li>
+
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/2boot/">
+            
+                    <a href="https://mp1994.github.io/2boot/">
+                        2boot
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/linux/">
+            
+                    <a href="https://mp1994.github.io/linux/">
+                        linux
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/meta/">
+            
+                    <a href="https://mp1994.github.io/meta/">
+                        meta
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/pages/whoami/">
+            
+                    <a href="https://mp1994.github.io/pages/whoami/">
+                        whoami
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+
+
+            <!--<li>
+                <a href="https://github.com/sighingnow/jekyll-gitbook/fork" target="blank" class="gitbook-link">
+                    Fork it Now!
+                </a>
+            </li>-->
+        </ul>
+    </nav>
+</div><div class="book-body"><div class="body-inner">
+    <div class="book-header" role="navigation">
+        <!-- Title -->
+        <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i>
+            
+                <a href="." >Mattically</a>
+            
+        </h1>
+    </div>
+    <div class="page-wrapper" tabindex="-1" role="main">
+        <div class="page-inner">
+            <div id="book-search-results">
+                <div class="search-noresults">
+                    <section class="normal markdown-section">
+
+                        
+                            <h1 id="">Mattically</h1>
+                        
+
+                        <h4 id="according-to-matti-tech-related-random-access-memories"><em>According to Matti</em>… Tech-related random-access memories.</h4>
+
+<p>  <!-- vertical space --></p>
+
+<hr />
+
+<p>
+
+    <a href="/linux/2023-02-07-deterministic-loops.html">Deterministic and reliable execution of loop functions in C/C++</a>
+    <p>This post illustrates how to execute in a reliable and <em>deterministic</em> way a function at a (fixed) frequency, i.e. after a user-defined time interval that we’ll call <em>cycle time</em>. In the following, we will implement a basic loop function with timer re-arming and self-benchmarking features, and we will wrap it to <em>hide</em> this functionalities to the end user, allowing them to only change the user code that will be executed in the loop. For variable cycle durations, or to implement an adaptive frequency (e.g., switch between <em>idle</em> state and <em>active</em> state), we could also expose to the user timer re-arming. As always, the implementation and the code shown below are tested on Linux only and are not guaranteed to work under any other OS.</p>
+
+<hr />
+
+    <a href="/linux/2022-09-05-preempt-patch.html">Real-time PREEMPT patch for the Linux Kernel</a>
+    <p>This article provides a minimal guide to installing the PREEMPT RT patch for the Linux kernel on a general-purpose computer (Dell XPS 7390). This should work on <em>any</em> modern PC/laptop.</p>
+
+<hr />
+
+    <a href="/2boot/2022-04-25-perf-tuning.html">Tuning KVM for Best Performance</a>
+    <p>In the previous posts, we have set up a Kernel Virtual Machine (KVM) with <code class="language-plaintext highlighter-rouge">libvirt</code> and <code class="language-plaintext highlighter-rouge">qemu</code>. We have seen how type-I hypervisors allow almost bare-metal performance. With this post, I am going to talk about some tweaking and tuning we can do to further optimize KVM performance.</p>
+
+<hr />
+
+    <a href="/2boot/2022-03-19-virtualize-partition.html">Virtualize a Physical Windows Partition from Linux with KVM</a>
+    <p>If you are familiar with a dual-boot configuration, you must have wondered at least once: <em>is there a way I can avoid rebooting every time?</em> Sometimes you just need to open an app that runs on Windows only for 5 minutes. Whatever the case may be, it would be very handy to be able to <strong>virtualize an existing partition</strong>.</p>
+
+<hr />
+
+    <a href="/2boot/2022-03-05-winux.html">Windows+Linux Dual Boot</a>
+    <p>Setting up a regular dual boot configuration is quite easy. It is trivial if you are installing Linux on a partition of a Windows PC. It may be a little bit trickier the other way around. This is because <a href="https://unix.stackexchange.com/a/68587/437761">Windows will overwrite the boot sector</a> with its (stupid) MBR, throwing GRUB out of the window.</p>
+
+<hr />
+
+    <a href="/2boot/2022-03-05-dual-boot.html">Dual Boot or Virtual Machine? Easy, both!</a>
+    <p>At the starting of my PhD in Bioengineering, back in 2019, I was running a 6-years-old MacBook Air. 
+It served me well during my bachelors and my masters, but an upgrade was overdue.<br />
+I needed a laptop for work. I did not want to use Windows. I really could not go back. I chose the new Dell XPS 13, the developer edition that runs Ubuntu (18.04) LTS out of the box. 
+A great option to save some bucks, if you don’t need Windows or you can get a license at work.</p>
+
+<hr />
+
+    <a href="/meta/2022-02-21-hello-world.html">Hello World</a>
+    <p><em>Hello, world!</em> Here is it. You can find out more about me <a href="https://mp1994.github.io/pages/whoami">here</a>. Nothing much to say here.</p>
+
+<hr />
+
+</p>
+
+<script async="" src="//static.getclicky.com/101356528.js"></script>
+
+<noscript><p><img alt="Clicky" width="1" height="1" src="//in.getclicky.com/101356528ns.gif" /></p></noscript>
+
+                    </section>
+                </div><div class="search-results">
+    <div class="has-results">
+        <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+        <ul class="search-results-list"></ul>
+    </div>
+    <div class="no-results">
+        <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+    </div>
+</div></div>
+        </div>
+    </div>
+</div>
+
+                    <a href="https://mp1994.github.io/meta/2022-02-21-hello-world.html" class="navigation navigation-next navigation-unique" aria-label="Next page: Hello World">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                
+            </div>
+
+            <script>
+            var gitbook = gitbook || [];
+            gitbook.push(function() {
+                gitbook.page.hasChanged({
+    "page": {
+        "title": "Introduction",
+        "level": "1.1",
+        "depth": 1,
+        
+
+        
+        "next": {
+            "title": "Hello World",
+            "level": "1.2",
+            "depth": 1,
+            "path": "_posts/2022-02-21-hello-world.md",
+            "ref": "_posts/2022-02-21-hello-world.md",
+            "articles": []
+        },
+        
+        "dir": "ltr"
+    },    "config": {
+        "plugins": ["fontsettings", "highlight", "livereload", "lunr", "search", "sharing", "theme-default", "livereload"],
+        "styles": {
+            "ebook": "styles/ebook.css",
+            "epub": "styles/epub.css",
+            "mobi": "styles/mobi.css",
+            "pdf": "styles/pdf.css",
+            "print": "styles/print.css",
+            "website": "styles/website.css"
+        },
+        "pluginsConfig": {
+            "fontsettings": {
+                "family": "sans",
+                "size": 2,
+                "theme": "white"
+            },
+            "highlight": {},
+            "livereload": {},
+            "lunr": {
+                "ignoreSpecialCharacters": false,
+                "maxIndexSize": 1000000
+            },
+            "search": {},
+            "sharing": {
+                "all": ["facebook", "google", "twitter", "weibo", "instapaper"],
+                "facebook": true,
+                "google": false,
+                "instapaper": false,
+                "twitter": true,
+                "vk": false,
+                "weibo": false
+            },
+            "theme-default": {
+                "showLevel": false,
+                "styles": {
+                    "ebook": "styles/ebook.css",
+                    "epub": "styles/epub.css",
+                    "mobi": "styles/mobi.css",
+                    "pdf": "styles/pdf.css",
+                    "print": "styles/print.css",
+                    "website": "styles/website.css"
+                }
+            }
+        },
+        "theme": "default",
+        "author": "Tao He",
+        "pdf": {
+            "pageNumbers": true,
+            "fontSize": 12,
+            "fontFamily": "Arial",
+            "paperSize": "a4",
+            "chapterMark": "pagebreak",
+            "pageBreaksBefore": "/",
+            "margin": {
+                "right": 62,
+                "left": 62,
+                "top": 56,
+                "bottom": 56
+            }
+        },
+        "structure": {
+            "langs": "LANGS.md",
+            "readme": "README.md",
+        },
+        "variables": {},
+        "title": "Mattically",
+        "language": "en",
+        "gitbook": "*"
+    },
+    "file": {
+        "path": "index.md",
+        "mtime": "",
+        "type": "markdown"
+    },
+    "gitbook": {
+        "version": "3.2.3",
+        "time": "2023-02-10 11:55:32 +0000"
+    },
+    "basePath": "https://mp1994.github.io",
+    "book": {
+        "language": ""
+    }
+});
+            });
+            </script>
+        </div><script src="https://mp1994.github.io/gitbook/gitbook.js"></script>
+<script src="https://mp1994.github.io/gitbook/theme.js"></script>
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-sharing/buttons.js"></script>
+
+<!-- <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+<script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search.js"></script> -->
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/jquery.mark.min.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.js"></script>
+
+<script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<script async src="//static.getclicky.com/101356528.js"></script>
+<noscript><p><img alt="Clicky" width="1" height="1" src="//in.getclicky.com/101356528ns.gif" /></p></noscript>
+</body>
+</html>

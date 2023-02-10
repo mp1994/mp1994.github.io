@@ -1,0 +1,41 @@
+.code-header {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.copy-code-button {
+    position: relative;
+    top: 40px;
+    left: -20px;
+    display: grid;
+    grid-auto-flow: column;
+    align-items: center;
+    border: none;
+    cursor: pointer;
+    font-size: 8pt;
+    padding: 8px 12px;
+    font-family: sans-serif;
+    background-color: #e5f2fc;
+    border-radius: 2%;
+    opacity: 0.5;
+}
+
+.copy-code-button:hover{
+    opacity: 1.0;
+}
+
+.copy-code-button::before{
+    content: "Copy";
+}
+
+.copy-code-button::after{
+    content: "";
+}
+
+.copy-code-button.copied::before{
+    content: "";
+}
+
+.copy-code-button.copied::after{
+    content: "✔️";
+}

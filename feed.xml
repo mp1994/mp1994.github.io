@@ -1,0 +1,712 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://mp1994.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://mp1994.github.io/" rel="alternate" type="text/html" /><updated>2023-02-10T11:55:32+00:00</updated><id>https://mp1994.github.io/feed.xml</id><title type="html">Mattically</title><subtitle>Tech-related random-access memories
+</subtitle><author><name>Mattia Pesenti</name></author><entry><title type="html">Deterministic and reliable execution of loop functions in C/C++</title><link href="https://mp1994.github.io/linux/2023-02-07-deterministic-loops.html" rel="alternate" type="text/html" title="Deterministic and reliable execution of loop functions in C/C++" /><published>2023-02-07T00:00:00+00:00</published><updated>2023-02-10T11:55:11+00:00</updated><id>https://mp1994.github.io/linux/deterministic-loops</id><content type="html" xml:base="https://mp1994.github.io/linux/2023-02-07-deterministic-loops.html"><![CDATA[<p>This post illustrates how to execute in a reliable and <em>deterministic</em> way a function at a (fixed) frequency, i.e. after a user-defined time interval that we’ll call <em>cycle time</em>. In the following, we will implement a basic loop function with timer re-arming and self-benchmarking features, and we will wrap it to <em>hide</em> this functionalities to the end user, allowing them to only change the user code that will be executed in the loop. For variable cycle durations, or to implement an adaptive frequency (e.g., switch between <em>idle</em> state and <em>active</em> state), we could also expose to the user timer re-arming. As always, the implementation and the code shown below are tested on Linux only and are not guaranteed to work under any other OS.</p>
+
+<h2 id="sigalrm">SIGALRM</h2>
+<p>Under Linux, POSIX provides the <code class="language-plaintext highlighter-rouge">SIGALRM</code> signal that fires when a timer expires. We can exploit the <code class="language-plaintext highlighter-rouge">alarm(int seconds)</code> function to set the <code class="language-plaintext highlighter-rouge">SIGALRM</code> after a specified time interval in seconds. This can execute any function we previously assigned to this signal.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="c1">// Loop function</span>
+<span class="kt">void</span> <span class="nf">loop_function</span><span class="p">(</span><span class="kt">int</span> <span class="n">s</span><span class="p">)</span> <span class="p">{</span>
+    
+<span class="p">}</span>
+
+<span class="c1">// Link our callback to the SIGALRM signal</span>
+<span class="n">signal</span><span class="p">(</span><span class="n">SIGALRM</span><span class="p">,</span> <span class="n">loop_function</span><span class="p">);</span>
+<span class="c1">// Set the timer to expire in 2 seconds</span>
+<span class="n">alarm</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span></code></pre></figure>
+
+<p>The main limitation of this approach is that <code class="language-plaintext highlighter-rouge">alarm()</code> takes an integer (<code class="language-plaintext highlighter-rouge">unsigned int</code>) and thus we cannot achieve sub-second precision. One could use <code class="language-plaintext highlighter-rouge">setitimer()</code> instead, but we are not going to do that. Instead, we are going to take advantage of the <a href="https://www.boost.org/">Boost</a> library.</p>
+
+<h2 id="boost-asio">Boost ASIO</h2>
+
+<p>Asynchronous input/output (ASIO) allows concurrent, non-blocking I/O operations to run without affecting the main program. In my (limited) experience, <a href="https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/rationale.html">Boost.Asio</a> is the way to go for C++ applications that require asynchronous I/O. The <a href="https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio.html">documentation</a> also contains useful tutorials and examples. Please mind that I have been posting links to Boost version <code class="language-plaintext highlighter-rouge">1.65.1</code> since it is the version installed by <code class="language-plaintext highlighter-rouge">apt</code> on Ubuntu 18.04 LTS.</p>
+
+<h3 id="deadline_timer">deadline_timer</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">basic_deadline_timer</code> class template provides the ability to perform a blocking or asynchronous wait for a timer to expire. The <code class="language-plaintext highlighter-rouge">wait()</code> method can be used to wait for the timer to expire while blocking the execution of the current thread, while we can use <code class="language-plaintext highlighter-rouge">async_wait()</code> to avoid blocking thread’s execution while waiting for the deadline timer to expire.</p>
+
+<p>To create a deadline timer, we need few lines of code:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="c1">// IO service that handles the deadline_timer</span>
+<span class="n">boost</span><span class="o">::</span><span class="n">asio</span><span class="o">::</span><span class="n">io_service</span> <span class="n">timer_io</span><span class="p">;</span>
+
+<span class="c1">// Create the timer object</span>
+<span class="n">boost</span><span class="o">::</span><span class="n">asio</span><span class="o">::</span><span class="n">deadline_timer</span> <span class="nf">t</span><span class="p">(</span><span class="n">timer_io</span><span class="p">);</span>
+<span class="c1">// Set the expire time relative to the current time</span>
+<span class="n">t</span><span class="p">.</span><span class="n">expires_from_now</span><span class="p">(</span><span class="n">boost</span><span class="o">::</span><span class="n">posix_time</span><span class="o">::</span><span class="n">seconds</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span>
+
+<span class="c1">// Non-blocking wait</span>
+<span class="n">t</span><span class="p">.</span><span class="n">async_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">loop_function</span><span class="p">);</span>
+
+<span class="c1">// Start the timer</span>
+<span class="c1">// The IO service run() is blocking, so the main thread</span>
+<span class="c1">// will be blocked by this function call.</span>
+<span class="n">timer_io</span><span class="p">.</span><span class="n">run</span><span class="p">();</span></code></pre></figure>
+
+<p>You can find the full code of the example above and run it <a href="https://wandbox.org/permlink/AJPcQAiT5pOdZhWs">here</a>. 
+There are some things that are worth mentioning. Every <code class="language-plaintext highlighter-rouge">deadline_timer</code> needs an <code class="language-plaintext highlighter-rouge">io_service</code> to run. One or more timers can be assigned to the same IO service when they are created. Although the call to the method <code class="language-plaintext highlighter-rouge">async_wait()</code> is non-blocking, if we are going to run the <code class="language-plaintext highlighter-rouge">run()</code> method of the IO service, the main thread will be blocked. This means that we need to wrap the call to the IO service in another thread to fully exploit the deadline timer to generate a non-blocking loop.</p>
+
+<p>The example code above sets a deadline timer to fire after 5 seconds and calls the handler function <code class="language-plaintext highlighter-rouge">loop_function</code> after waiting. Hence, the timer only fires once, <code class="language-plaintext highlighter-rouge">timer_io.run()</code> returns and the program exits. To effectively run a loop, we need to re-arm the timer, and we can do this directly inside the <code class="language-plaintext highlighter-rouge">loop_function</code>.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="kt">void</span> <span class="nf">loop_function</span><span class="p">(</span><span class="k">const</span> <span class="n">boost</span><span class="o">::</span><span class="n">system</span><span class="o">::</span><span class="n">error_code</span><span class="o">&amp;</span> <span class="cm">/*e*/</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="c1">// Re-arm the timer</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">expires_from_now</span><span class="p">(</span><span class="n">boost</span><span class="o">::</span><span class="n">posix_time</span><span class="o">::</span><span class="n">seconds</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">async_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">loop_function</span><span class="p">);</span>
+
+    <span class="cm">/** User code **/</span>
+    <span class="n">std</span><span class="o">::</span><span class="n">cout</span> <span class="o">&lt;&lt;</span> <span class="s">"deadline_timer expired</span><span class="se">\n</span><span class="s">"</span><span class="p">;</span>
+    <span class="cm">/** User code **/</span>
+
+<span class="p">}</span></code></pre></figure>
+
+<p>In this way, the callback first resets the timer, and then it actually executes the user code. In this example, the timer object <code class="language-plaintext highlighter-rouge">t</code> must be a global variable, or we must use a global (shared) pointer. We may want to <em>hide</em> the code that handles the timer itself to the user and only provide a function that gets called at every cycle. If this is the case, we can wrap a user-defined loop function into the <em>actual</em> callback that gets called by the deadline timer.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="k">static</span> <span class="kt">void</span> <span class="nf">w_loop_function</span><span class="p">(</span><span class="k">const</span> <span class="n">boost</span><span class="o">::</span><span class="n">system</span><span class="o">::</span><span class="n">error_code</span><span class="o">&amp;</span> <span class="cm">/*e*/</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="c1">// Re-arm the timer</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">expires_from_now</span><span class="p">(</span><span class="n">boost</span><span class="o">::</span><span class="n">posix_time</span><span class="o">::</span><span class="n">seconds</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">async_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">w_loop_function</span><span class="p">);</span>
+
+    <span class="c1">// Call the user-defined loop function</span>
+    <span class="n">loop_function</span><span class="p">();</span>
+
+    <span class="c1">// Update the loop counter</span>
+    <span class="n">loop_counter</span><span class="o">++</span><span class="p">;</span>
+
+<span class="p">}</span>
+
+<span class="kt">void</span> <span class="n">loop_function</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="cm">/** User code **/</span>
+    <span class="n">std</span><span class="o">::</span><span class="n">cout</span> <span class="o">&lt;&lt;</span> <span class="s">"deadline_timer expired</span><span class="se">\n</span><span class="s">"</span><span class="p">;</span>
+    <span class="cm">/** User code **/</span>    
+
+<span class="p">}</span></code></pre></figure>
+
+<p>In this way, the <code class="language-plaintext highlighter-rouge">w_loop_function</code> can be hidden to the final user of our API, exposing only a template <code class="language-plaintext highlighter-rouge">loop_function</code> that can be defined as required by the application. In the case we may want to achieve a variable loop frequency, we could have a global variable to be used as the argument of the call <code class="language-plaintext highlighter-rouge">t.expires_from_now()</code>, or – even better – we could put everything into a class.</p>
+
+<p><a href="https://wandbox.org/permlink/J9SdvVP2DJVwUbks">This example</a> shows the implementation of a custom deadline timer class with a wrapped loop function to handle timer re-arming and benchmarking the effective cycle time duration. Moreover, it sets real-time priority (<code class="language-plaintext highlighter-rouge">sched_priority = 99</code>) with FIFO scheduling to the dedicated thread that runs the IO service.</p>
+
+<h2 id="why-the-f-is-this-slower-with-the-preempt_rt-kernel">Why the <em>f</em> is this <em>slower</em> with the PREEMPT_RT kernel?</h2>
+
+<p>That’s still an open question for me: when I initially started developing and testing the code based on the <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code>, I was using the mainline Linux kernel. I got very promising results, as the ones reported above, so I was thrilled when I first tested it on a custom kernel with the PREEMPT_RT patch. I was disappointed soon after.</p>
+
+<p><img src="/assets/img/dl_timer_preempt.png" alt="PREEMPT" /></p>
+
+<p>The loop is supposed to run at 1000 Hz, yet the average cycle time is 1.33 ms, with all the cycles failing to respect the 1 ms interval. <strong>Why</strong>? Well, <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code> is not <em>actually</em> using a hardware timer. The ASIO service created to run the <code class="language-plaintext highlighter-rouge">deadline_timer</code> asynchronously waits for the expire time, while letting other tasks and functions run in the meantime. At the expire time, the user-defined callback is executed. It is slower because the <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code> is a general-purpose timer implementation that is designed to work with any operating system and is not specifically optimized for real-time systems. Hence, it does not and cannot use real-time scheduling.</p>
+
+<h3 id="wrap-up">Wrap-up</h3>
+<p>The <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code> is a great and versatile approach to have <em>soft real-time</em> loop functions in a general-purpose OS. We can achieve a reliable 1000 Hz loop on the mainline Linux kernel. Of course, this does not guarantee limited and predictable latency, so for <em>hard real-time</em> applications we need the PREEMPT_RT patch and ad-hoc real-time software.</p>
+
+<h2 id="a-note-on-boost-and-portability">A note on Boost and portability</h2>
+
+<p>I am a fan of the Boost library, which I consider one of the best open-source projects. Yet, preparing the example code for this post I was a bit disappointed. I was familiar with <a href="">wandbox</a>, an online C++ compiler that lets you play around with the code, build it and run it online. It is great for sharing code with people and for quick demos, as I intended to do here. Wandbox lets you choose the compiler, and I chose <code class="language-plaintext highlighter-rouge">gcc 7.5.0</code>, the same I have installed on my machine. I could not choose the version of Boost, which is <code class="language-plaintext highlighter-rouge">1.75.0</code>. Linking <code class="language-plaintext highlighter-rouge">boost_thread</code> and <code class="language-plaintext highlighter-rouge">boost_system</code> works fine and the first example code run as smoothly as on my laptop (the output is buffered so it won’t update during the execution of the program…).</p>
+
+<p>Things went differently when I copy-pasted the code of the second example. Turns out <code class="language-plaintext highlighter-rouge">boost::posix_time::milliseconds()</code> cannot take a non-integer argument, and so my code could not compile on Wandbox. So basically, I need to convert to integer the cycle time <code class="language-plaintext highlighter-rouge">dt</code> before converting it to milliseconds, effectively limiting the frequency of the loops to 1000 Hz. Fortunately, I could change my code and use instead <code class="language-plaintext highlighter-rouge">boost::posix_time::microseconds()</code>, that limits the maximum loop frequency to 1 MHz. Although modern CPUs clock faster than 1 GHz, on my laptop I could not achieve a rate higher than 10 kHz with reliable cycle times.</p>
+
+<p>I further investigated what I believed was a portability issue. Newer versions of Boost, like the <code class="language-plaintext highlighter-rouge">1.75.0</code>, provide mostly header-only libraries that do not require compilation, which is great for a service like Wandbox as it reduces the computation cost of the build process. 
+It turns out that the difference between the two versions of Boost was indeed a bugfix that also fixed my code: <code class="language-plaintext highlighter-rouge">boost::posix_time::milliseconds()</code> (as well as <code class="language-plaintext highlighter-rouge">microseconds()</code> and <code class="language-plaintext highlighter-rouge">seconds()</code>) <em>could</em> take a non-integer argument, but then it could not convert it to the proper time, thus generating the wrong loop rate.</p>
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on February 7, 2023 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>]]></content><author><name>mp1994</name></author><category term="linux" /><category term="linux," /><category term="embedded," /><category term="loop" /><category term="function," /><category term="timer," /><category term="deadline" /><category term="timer," /><category term="engineering" /><summary type="html"><![CDATA[This post illustrates how to execute in a reliable and deterministic way a function at a (fixed) frequency, i.e. after a user-defined time interval that we’ll call cycle time. In the following, we will implement a basic loop function with timer re-arming and self-benchmarking features, and we will wrap it to hide this functionalities to the end user, allowing them to only change the user code that will be executed in the loop. For variable cycle durations, or to implement an adaptive frequency (e.g., switch between idle state and active state), we could also expose to the user timer re-arming. As always, the implementation and the code shown below are tested on Linux only and are not guaranteed to work under any other OS.]]></summary></entry><entry><title type="html">Real-time PREEMPT patch for the Linux Kernel</title><link href="https://mp1994.github.io/linux/2022-09-05-preempt-patch.html" rel="alternate" type="text/html" title="Real-time PREEMPT patch for the Linux Kernel" /><published>2022-09-05T00:00:00+00:00</published><updated>2023-02-10T11:55:11+00:00</updated><id>https://mp1994.github.io/linux/preempt-patch</id><content type="html" xml:base="https://mp1994.github.io/linux/2022-09-05-preempt-patch.html"><![CDATA[<p>This article provides a minimal guide to installing the PREEMPT RT patch for the Linux kernel on a general-purpose computer (Dell XPS 7390). This should work on <em>any</em> modern PC/laptop.</p>
+
+<h3 id="preamble-real-time-applications">Preamble: Real-Time applications</h3>
+<p>Computers may be used to interface or control <em>real-time systems</em>, i.e. systems that <em>must react to an external event like an interrupt within a defined time frame</em> <a href="https://wiki.linuxfoundation.org/realtime/documentation/start#documentation">[1]</a>.
+Hence, such systems must always respond with a <strong>limited and deterministic delay</strong> to external events. Low-priority tasks must be preempted (i.e., interrupted) to meet such constrained deadlines; such tasks are then completed by the CPU once the higher-priority, real-time task is complete.</p>
+
+<p>The main aim of the PREEMPT_RT patch is to minimize the amount of kernel code that is non-preemptible <a href="https://wiki.linuxfoundation.org/realtime/documentation/technical_details/start">[2]</a>.</p>
+
+<p>A typical real-time application is running a control loop at a specific frequency. Kernel-level preemption allows the CPU to execute the loop at the specified rate (below a certain limit). Moreover, the PREEMPT_RT patch also enables high-resolution timers allowing precise timed scheduling.</p>
+
+<h3 id="1--install-required-tools">1- Install required tools</h3>
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt <span class="nb">install </span>build-essential bc curl <span class="se">\</span>
+wget ca-certificates gnupg2 libssl-dev <span class="se">\</span>
+lsb-release libelf-dev bison flex dwarves <span class="se">\</span>
+zstd libncurses-dev dwarves
+</code></pre></div></div>
+
+<h3 id="2--prepare-the-build-environment">2- Prepare the build environment</h3>
+<p>We are going to create a folder in the <code class="language-plaintext highlighter-rouge">$HOME</code> folder, where we will apply the patch and compile the kernel.</p>
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd
+mkdir </span>kernel <span class="o">&amp;&amp;</span> <span class="nb">cd </span>kernel
+</code></pre></div></div>
+
+<h3 id="3--download-the-kernel-and-the-corresponding-patch">3- Download the kernel and the corresponding patch</h3>
+<p>This guide was written after patching kernel <code class="language-plaintext highlighter-rouge">v5.4.19</code> with the PREEMPT RT patch version <code class="language-plaintext highlighter-rouge">rt-11</code>. We can download the kernel 
+and the patch using <code class="language-plaintext highlighter-rouge">wget</code>, or browsing the public repository for the <a href="https://mirrors.edge.kernel.org/pub/linux/kernel/">kernel</a> and the <a href="https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/">patch</a>, respectively.</p>
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.19.tar.xz
+wget https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/5.4/older/patch-5.4.19-rt11.patch.xz
+</code></pre></div></div>
+
+<h3 id="4--extract-the-archives-and-apply-the-patch">4- Extract the archives and apply the patch</h3>
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>xz <span class="nt">-d</span> <span class="k">*</span>.xz
+<span class="nb">tar </span>xf linux-<span class="k">*</span>.tar
+<span class="nb">cd </span>linux-<span class="k">*</span>/
+patch <span class="nt">-p1</span> &lt; ../patch-<span class="k">*</span>.patch
+</code></pre></div></div>
+
+<p>The commands above use the regex wildcard <code class="language-plaintext highlighter-rouge">*</code> and thus will work independently of the version we are patching.</p>
+
+<h3 id="5--configure-the-kernel">5- Configure the kernel</h3>
+<p>First, we are going to copy our current configuration from the boot partition</p>
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cp</span> <span class="nt">-v</span> /boot/config-<span class="si">$(</span><span class="nb">uname</span> <span class="nt">-r</span><span class="si">)</span> .config
+</code></pre></div></div>
+<p>In the command above, <code class="language-plaintext highlighter-rouge">$(uname -r)</code> expands to the current kernel version (e.g., <code class="language-plaintext highlighter-rouge">5.4.0-124-generic</code> in my case) and copies it to the local file <code class="language-plaintext highlighter-rouge">.config</code>.
+Now, we need to configure the kernel. Specifically, we need to set the preemption model to enable the full real-time capability.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>make olddefconfig
+make menuconfig
+</code></pre></div></div>
+
+<p>The latest command will open a TUI (terminal user interface): navigate with the arrow keys and select:</p>
+
+<ul>
+<li><b>General Setup &gt; Preemption Model &gt; Fully Preemptible Kernel (Real-Time)</b></li>
+<li><b>Cryptographic API &gt; Certificates for signature checking</b> (at the very bottom of the list) <b>&gt; Provide system-wide ring of trusted keys &gt; Additional X.509 keys for default system keyring &gt; "" </b>(i.e., remove "debian/canonical-certs.pem" from the text input field)</li>
+</ul>
+
+<p>Save to <code class="language-plaintext highlighter-rouge">.config</code> and exit.</p>
+
+<h3 id="6--build-the-kernel-as-a-debian-package-and-install-with-dpkg">6- Build the kernel as a Debian package and install with <code class="language-plaintext highlighter-rouge">dpkg</code></h3>
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>make <span class="nt">-j</span><span class="si">$(</span><span class="nb">nproc</span><span class="si">)</span> deb-pkg
+<span class="nb">sudo </span>dpkg <span class="nt">-i</span> ../linux-headers-<span class="k">*</span>.deb ../linux-image-<span class="k">*</span>.deb
+</code></pre></div></div>
+
+<h3 id="7--reboot-and-verify">7- Reboot and verify</h3>
+<p>The install process should have created the initial ramdisk file and the kernel file, and added the new boot entry to GRUB. We can verify with <code class="language-plaintext highlighter-rouge">ls -l /boot | grep rt</code>.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">ls</span> <span class="nt">-l</span> /boot/ | <span class="nb">grep </span>rt
+config-5.4.19-rt11preempt
+initrd.img-5.4.19-rt11preempt
+System.map-5.4.19-rt11preempt
+vmlinuz-5.4.19-rt11preempt
+</code></pre></div></div>
+
+<p>We can now reboot and select the RT kernel from GRUB. To verify all is set correctly, we can check the output of <code class="language-plaintext highlighter-rouge">uname -a</code> and verify that <code class="language-plaintext highlighter-rouge">cat /sys/kernel/realtime</code> returns <code class="language-plaintext highlighter-rouge">1</code>.</p>
+
+<h4 id="note-1-uefi-and-secure-boot">Note 1: UEFI and Secure Boot</h4>
+<p>Modern systems equipped with UEFI firmware (i.e., the <em>new</em> BIOS) often have secure boot enabled by default. This means that the system will boot only if the kernel is signed. This may be tricky to achieve when building our own kernel, as in this case. I therefore suggest to disable secure boot (especially in case of boot issues after trying out this guide).</p>
+
+<h4 id="note-2-rt-permissions">Note 2: RT permissions</h4>
+<p>It may be handy to allow the user to set real-time permissions to executable without needing root permission (i.e., without <code class="language-plaintext highlighter-rouge">sudo</code>). We can 
+achieve this by adding the user to the <code class="language-plaintext highlighter-rouge">realtime</code> group.</p>
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>addgroup realtime
+<span class="nb">sudo </span>usermod <span class="nt">-a</span> <span class="nt">-G</span> realtime <span class="si">$(</span><span class="nb">whoami</span><span class="si">)</span>
+</code></pre></div></div>
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on September 5, 2022 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>]]></content><author><name>mp1994</name></author><category term="linux" /><category term="linux," /><category term="rt," /><category term="preempt" /><summary type="html"><![CDATA[This article provides a minimal guide to installing the PREEMPT RT patch for the Linux kernel on a general-purpose computer (Dell XPS 7390). This should work on any modern PC/laptop.]]></summary></entry><entry><title type="html">Tuning KVM for Best Performance</title><link href="https://mp1994.github.io/2boot/2022-04-25-perf-tuning.html" rel="alternate" type="text/html" title="Tuning KVM for Best Performance" /><published>2022-04-25T00:00:00+00:00</published><updated>2023-02-10T11:55:11+00:00</updated><id>https://mp1994.github.io/2boot/perf-tuning</id><content type="html" xml:base="https://mp1994.github.io/2boot/2022-04-25-perf-tuning.html"><![CDATA[<p>In the previous posts, we have set up a Kernel Virtual Machine (KVM) with <code class="language-plaintext highlighter-rouge">libvirt</code> and <code class="language-plaintext highlighter-rouge">qemu</code>. We have seen how type-I hypervisors allow almost bare-metal performance. With this post, I am going to talk about some tweaking and tuning we can do to further optimize KVM performance.</p>
+
+<p><a href="https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Performance_tuning">Performance tuning</a> is very well described in the Arch Linux wiki. Here we are going to see a few optimization steps to improve the performance of our VM.</p>
+
+<h3 id="cpu-pinning">CPU pinning</h3>
+
+<p>The first and easiest step is to enable CPU pinning. By default, KVM handles guests as normal threads representing virtual processors. These threads are managed by the <a href="https://docs.kernel.org/scheduler/index.html">Linux scheduler</a> like any other thread, being assigned to any available CPU cores based on <a href="https://man7.org/linux/man-pages/man2/nice.2.html">niceness</a> and priority queues. As a result, the local CPU cache benefits (L1/L2/L3) are lost each time the host scheduler reschedules the virtual CPU thread on a different physical CPU. This can noticeably harm performance on the guest. <strong>CPU pinning</strong> aims to resolve this by limiting which physical CPUs the virtual CPUs are allowed to run on. The ideal setup is a 1:1 mapping such that the virtual CPU cores match physical CPU cores.</p>
+
+<p><code class="language-plaintext highlighter-rouge">lscpu -e</code> shows the CPU topology: hyper-threading splits physical CPU cores (<code class="language-plaintext highlighter-rouge">CORE</code>) into virtual CPUs (<code class="language-plaintext highlighter-rouge">CPU</code>).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CPU NODE SOCKET CORE L1d:L1i:L2:L3 ONLINE MAXMHZ    MINMHZ
+0   0    0      0    0:0:0:0       yes    4900.0000 400.0000
+1   0    0      1    1:1:1:0       yes    4900.0000 400.0000
+2   0    0      2    2:2:2:0       yes    4900.0000 400.0000
+3   0    0      3    3:3:3:0       yes    4900.0000 400.0000
+4   0    0      0    0:0:0:0       yes    4900.0000 400.0000
+5   0    0      1    1:1:1:0       yes    4900.0000 400.0000
+6   0    0      2    2:2:2:0       yes    4900.0000 400.0000
+7   0    0      3    3:3:3:0       yes    4900.0000 400.0000
+</code></pre></div></div>
+
+<p>In my case (Intel i7-10510U), for example, the physical core 0 is split into virtual CPUs 0 and 4. As mentioned above, to optimize performance, we should passthrough virtual CPUs that correspond to physical CPU cores, sharing the lowest level CPU cache (L1 and L2). Core 0 should remain assigned to the host <a href="https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Performance_tuning">1</a>. To optimize performance, I have assigned vCPUs 2-7 to my Windows guest adding the following to the VM’s XML file.</p>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nt">&lt;vcpu</span> <span class="na">placement=</span><span class="s">'static'</span><span class="nt">&gt;</span>6<span class="nt">&lt;/vcpu&gt;</span>
+  <span class="nt">&lt;cputune&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'0'</span> <span class="na">cpuset=</span><span class="s">'1'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'1'</span> <span class="na">cpuset=</span><span class="s">'5'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'2'</span> <span class="na">cpuset=</span><span class="s">'2'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'3'</span> <span class="na">cpuset=</span><span class="s">'6'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'4'</span> <span class="na">cpuset=</span><span class="s">'3'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'5'</span> <span class="na">cpuset=</span><span class="s">'7'</span><span class="nt">/&gt;</span>
+  <span class="nt">&lt;/cputune&gt;</span>
+</code></pre></div></div>
+
+<p>In the configuration, <code class="language-plaintext highlighter-rouge">vcpu</code> is the virtual CPU ID for the guest, while <code class="language-plaintext highlighter-rouge">cpuset</code> should correspond to <code class="language-plaintext highlighter-rouge">CPU</code> as reported by <code class="language-plaintext highlighter-rouge">lscpu -e</code>. I have left only <code class="language-plaintext highlighter-rouge">CORE 0</code> to the Linux host, as I don’t plan to run heavy tasks on Linux while using the Windows guest.</p>
+
+<h3 id="frequency-scaling">Frequency Scaling</h3>
+
+<p>Modern CPUs do not run at a fixed clock frequency. They have a base clock, a minimum and a maximum (or turbo) frequency. Frequency modulation is a clever solution for the trade off between power saving and performance. These days, things are getting more and more complicated (partially because of nonsense marketing terminology). Let’s define the following: the <em>minimum frequency</em> is the lowest the CPU settles to at idle. This is 800 MHz on my Intel i7-10510U. Then, there is the <em>nominal frequency</em> (or <em>base</em> frequency), 1800 MHz in my case: let’s say this is the minimum frequency to which the CPU should be when <em>not</em> at idle. Depending on thermal headroom and load, the CPU frequency can increase in steps: the first step is the <em>multi-core regular turbo</em> frequency (2300 MHz), up to the <em>absolute maximum turbo</em> frequency (4900 MHz). The latter is often a single-core peak that may be reached only for brief bursts of power. The CPU will be mostly running at the <em>regular turbo</em> frequency under sustained, multi-core loads. This behavior is controlled by the <strong>CPU scaling governor</strong>. 
+Modern Intel CPUs use the <code class="language-plaintext highlighter-rouge">intel pstate</code> governor <a href="https://www.kernel.org/doc/html/v4.12/admin-guide/pm/intel_pstate.html">2</a>.</p>
+
+<p>Frequency scaling can affect the performance of our virtual machines. Briefly, to assure optimal performance in our KVM guests, we should check whether CPU frequency scales correctly under an increased load from the guest. We can check the current CPU frequency in several ways. The command <code class="language-plaintext highlighter-rouge">lscpu</code> shows many information about our CPU, including the current frequency. If we want to look at per-core CPU frequency, this is stored in several files (as typically done in Linux). Specifically, this info can be accessed with:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>watch -n1 cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq
+</code></pre></div></div>
+
+<p>The command <code class="language-plaintext highlighter-rouge">watch -n1</code> will refresh the output of <code class="language-plaintext highlighter-rouge">cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq</code> every second.</p>
+
+<h3 id="benchmarking">Benchmarking</h3>
+
+<p>Let us end this post with some benchmarks to quantify CPU performance tuning. I have chosen a very simple and quick benchmark with <a href="https://www.mersenne.org/download/">Prime95</a>. I have chosen Prime95 for two reasons: it is multi-platform, thus it will run both on Linux and Windows, and it allows to select the number of CPU cores to stress test. I will test 3 cores with hyperthreading enabled both on Linux and on the Windows KVM.</p>
+
+<p>I have set up the throughput benchmark with a 2048K FFT for 15 seconds. I have run the test in several configurations:</p>
+
+<ul>
+<li> Default CPU topology: 2 sockets, 1 core, 1 thread (total of 2 vCPUs) </li>
+<li> Manual CPU topology w/o CPU pinning: 1 socket, 3 cores, 2 threads (total of 6 vCPUs) </li>
+<li> Manual CPU topology w/ CPU pinning: 1 socket, 3 cores, 2 threads (total of 6 vCPUs) </li>
+<li> Bare metal on Linux (total of 6 vCPUs) </li>
+<!--<li> Bare metal on Windows (total of 6 vCPUs) </li> -->
+</ul>
+
+<p>Of course, bare-metal performance (267.97 iter/sec) are higher than every KVM configuration. Nevertheless, we notice how manually tweaking CPU topology dramatically improves performance from 66.57 iter/sec up to &gt;200 iter/sec. CPU pinning further improves performance of ~13%. KVM performance with CPU pinning reaches almost 87% of the bare-metal performance. Below the full results for each configuration.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center"> </th>
+      <th style="text-align: center"><strong>Worker 1</strong> [ms]</th>
+      <th style="text-align: center"><strong>Worker 2</strong> [ms]</th>
+      <th style="text-align: center"><strong>Worker 3</strong> [ms]</th>
+      <th style="text-align: center"><strong>Throughput</strong> [iter/s]</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center">1</td>
+      <td style="text-align: center">32.60</td>
+      <td style="text-align: center">27.86</td>
+      <td style="text-align: center">/</td>
+      <td style="text-align: center">66.57</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">2</td>
+      <td style="text-align: center">15.47</td>
+      <td style="text-align: center">14.41</td>
+      <td style="text-align: center">14.22</td>
+      <td style="text-align: center">204.31</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">3</td>
+      <td style="text-align: center">13.40</td>
+      <td style="text-align: center">12.73</td>
+      <td style="text-align: center">12.80</td>
+      <td style="text-align: center">231.31</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">4</td>
+      <td style="text-align: center">14.60</td>
+      <td style="text-align: center">14.17</td>
+      <td style="text-align: center">7.76</td>
+      <td style="text-align: center">267.97</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- --- comments
+CPU max clock 2400 MHz on Linux with `powersave` governor (nominal: 1800 MHz, "regular" turbo 2300 MHz, max turbo 4900 MHz)
+CPU freq ramps up to >4000 MHz **on idle** with `performance`, and then drops down to 3000 MHz under 100% load (scikit-learn model training) > WTF ??
+Geekbench5 on linux: 733 2875
+              Win10: 483 1851 (66% single core)
+---
+
+https://unix.stackexchange.com/questions/64297/host-cpu-does-not-scale-frequency-when-kvm-guest-needs-it
+https://forums.unraid.net/topic/44961-fps-drops-stuttering-and-other-things-that-make-me-sad/#comment-443617
+https://www.intel.com/content/www/us/en/developer/articles/guide/kvm-tuning-guide-on-xeon-based-systems.html
+https://www.kernel.org/doc/html/latest/admin-guide/pm/intel_pstate.html -->
+
+<!-- https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Setting_up_IOMMU
+Enable IOMMU ?
+
+Enable IOMMU with GRUB: https://devopstales.github.io/linux/proxmox-pci-passthrough/
+Set GRUB_CMDLINE_LINUX_DEFAULT="quiet splash intel_iommu=on iommu=pt" in /etc/default/grub
+then `sudo update-grub && reboot`
+
+# USB passthrough
+works out-of-the-box with virt-manager / virt-viewer
+
+udev rules:
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0c45", ATTRS{idProduct}=="6723", MODE="0666", TAG+="uaccess"
+reboot
+
+test libusb script (link repo github) -->
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on April 25, 2022 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>]]></content><author><name>mp1994</name></author><category term="2boot" /><category term="2boot," /><category term="dual" /><category term="boot," /><category term="kvm," /><category term="linux," /><category term="vm" /><summary type="html"><![CDATA[In the previous posts, we have set up a Kernel Virtual Machine (KVM) with libvirt and qemu. We have seen how type-I hypervisors allow almost bare-metal performance. With this post, I am going to talk about some tweaking and tuning we can do to further optimize KVM performance.]]></summary></entry><entry><title type="html">Virtualize a Physical Windows Partition from Linux with KVM</title><link href="https://mp1994.github.io/2boot/2022-03-19-virtualize-partition.html" rel="alternate" type="text/html" title="Virtualize a Physical Windows Partition from Linux with KVM" /><published>2022-03-19T00:00:00+00:00</published><updated>2023-02-10T11:55:11+00:00</updated><id>https://mp1994.github.io/2boot/virtualize-partition</id><content type="html" xml:base="https://mp1994.github.io/2boot/2022-03-19-virtualize-partition.html"><![CDATA[<p>If you are familiar with a dual-boot configuration, you must have wondered at least once: <em>is there a way I can avoid rebooting every time?</em> Sometimes you just need to open an app that runs on Windows only for 5 minutes. Whatever the case may be, it would be very handy to be able to <strong>virtualize an existing partition</strong>.</p>
+
+<p>Please mind that this is not rocket science. It also isn’t something new. Yet, I remember I had to struggle a bit to get this working, and I could not find much online, so I hope this is helpful.</p>
+
+<p><strong>Long-story short: yes, we can do this</strong>. We can virtualize the Windows partition from Linux. I.e., we can create a virtual machine and use the existing Windows partition as the drive for the VM. When I started off, I was familiar only with VirtualBox. Turns out it is not that hard to make it working: you just have to create a virtual disk that points both to the Windows partition and to the UEFI partition for boot. You can check out <em>this post</em> if you prefer to use VirtualBox (coming soon; in the meantime, <a href="https://www.anginf.de/?p=685">check this out</a>).</p>
+
+<p>Today, we are going to set this up using KVM and QEMU. <strong>KVM</strong> stands for <strong>Kernel Virtual Machine</strong>. The main advantage of KVM is performance. In short, <span style="color:#1d71d1"><em>“KVM converts Linux into a type-1 (bare-metal) hypervisor”</em></span>. Hence, KVM can take advantage of the Linux kernel’s memory controller, process scheduler, I/O stack, network stack, and so on. This allows <a href="https://www.phoronix.com/scan.php?page=article&amp;item=virtualbox-60-kvm&amp;num=1">much higher performance</a> with less over-head compared to a type-2 hypervisor (e.g., VirtualBox).</p>
+
+<h3 id="building-the-virtual-disk">Building the virtual disk</h3>
+
+<p>We are going to use <code class="language-plaintext highlighter-rouge">mdadm</code> to create and manage the virtual RAID array. First, we need to check how our disk is structured. Please mind that here we are consindering a single-disk dual boot setup. <br />
+We can use <code class="language-plaintext highlighter-rouge">fdisk -l &lt;disk&gt;</code> to check our disk. Here is how the output looks like in my case.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ fdisk -l /dev/nvme0n1
+Disk /dev/nvme0n1: 477 GiB, 512110190592 bytes, 1000215216 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+(...)
+
+Device             Start       End   Sectors   Size Type
+/dev/nvme0n1p1      2048   1599487   1597440   780M EFI System
+/dev/nvme0n1p2   1599488  12085247  10485760     5G Microsoft reserved
+/dev/nvme0n1p3  12085248 821014527 808929280 385.7G Linux filesystem
+/dev/nvme0n1p4 821014528 998633471 177618944  84.7G Microsoft basic data
+</code></pre></div></div>
+
+<p>We can identify the Windows partition as the one with the label <code class="language-plaintext highlighter-rouge">nvme0n1p4</code>. Now we need to create two files: one (100 MB) to hold the partition table and the EFI partition, and the second one (1 MB) to hold a backup of the partition table. Then, we can create a loop device to associate to each of these files with <code class="language-plaintext highlighter-rouge">losetup</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">dd </span><span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span><span class="nv">$HOME</span>/efi1 <span class="nv">bs</span><span class="o">=</span>1M <span class="nv">count</span><span class="o">=</span>100
+<span class="nb">dd </span><span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span><span class="nv">$HOME</span>/efi2 <span class="nv">bs</span><span class="o">=</span>1M <span class="nv">count</span><span class="o">=</span>1
+<span class="nv">LOOP1</span><span class="o">=</span><span class="si">$(</span><span class="nb">sudo </span>losetup <span class="nt">-f</span><span class="si">)</span>
+<span class="nb">sudo </span>losetup <span class="k">${</span><span class="nv">LOOP1</span><span class="k">}</span>  <span class="nv">$HOME</span>/efi1
+<span class="nv">LOOP2</span><span class="o">=</span><span class="si">$(</span><span class="nb">sudo </span>losetup <span class="nt">-f</span><span class="si">)</span>
+<span class="nb">sudo </span>losetup <span class="k">${</span><span class="nv">LOOP2</span><span class="k">}</span> <span class="nv">$HOME</span>/efi2
+</code></pre></div></div>
+
+<p>The creation of the files <code class="language-plaintext highlighter-rouge">ef1</code> and <code class="language-plaintext highlighter-rouge">efi2</code> is a one-time procedure, while <code class="language-plaintext highlighter-rouge">losetup</code> needs to be run every time we want to boot the VM. Finally, we can merge all these with the physical partition (<code class="language-plaintext highlighter-rouge">/dev/nvme0n1p4</code>) and create the RAID array:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>mdadm <span class="nt">--build</span> <span class="nt">--verbose</span> /dev/md0 <span class="nt">--chunk</span><span class="o">=</span>512 <span class="se">\</span>
+<span class="nt">--level</span><span class="o">=</span>linear <span class="nt">--raid-devices</span><span class="o">=</span>3 <span class="k">${</span><span class="nv">LOOP1</span><span class="k">}</span> /dev/nvme0n1p4 <span class="k">${</span><span class="nv">LOOP2</span><span class="k">}</span>
+</code></pre></div></div>
+
+<p>Another one-time-only step is to create the partition table in the virtual RAID disk. We can do this with <code class="language-plaintext highlighter-rouge">parted</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>parted /dev/md0
+<span class="o">(</span>parted<span class="o">)</span> unit s
+<span class="o">(</span>parted<span class="o">)</span> mktable gpt
+<span class="o">(</span>parted<span class="o">)</span> mkpart primary fat32 2048 204799    <span class="c"># depends on size of efi1 file</span>
+<span class="o">(</span>parted<span class="o">)</span> mkpart primary ntfs 204800 <span class="nt">-2049</span>    <span class="c"># depends on size of efi1 and efi2 files</span>
+<span class="o">(</span>parted<span class="o">)</span> <span class="nb">set </span>1 boot on
+<span class="o">(</span>parted<span class="o">)</span> <span class="nb">set </span>1 esp on
+<span class="o">(</span>parted<span class="o">)</span> <span class="nb">set </span>2 msftdata on
+<span class="o">(</span>parted<span class="o">)</span> name 1 EFI
+<span class="o">(</span>parted<span class="o">)</span> name 2 Windows
+<span class="o">(</span>parted<span class="o">)</span> quit
+</code></pre></div></div>
+
+<p>With these commands, we have created the EFI partition <code class="language-plaintext highlighter-rouge">/dev/md0p1</code> and the Windows partition <code class="language-plaintext highlighter-rouge">/dev/md0p2</code>. We need to format the EFI partition with:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>mkfs.msdos <span class="nt">-F</span> 32 <span class="nt">-n</span> EFI /dev/md0p1
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">mdadm</code> array is built and ready to be used. As a last step, we need to change its ownership to allow our user to perform R/W operations on it: <code class="language-plaintext highlighter-rouge">sudo chown $USER:$USER /dev/md0</code>.</p>
+
+<h3 id="creating-a-kvm-with-virt-manager">Creating a KVM with virt-manager</h3>
+
+<p>We are going to use <strong>virt-manager</strong> (<a href="https://virt-manager.org/">Virtual Machine Manager</a>) to handle our QEMU/KVM virtual machine. The virt-manager application allows both GUI-based and XML-based configuration and uses <code class="language-plaintext highlighter-rouge">libvirt</code> for KVM machines. You can install with your packet manager, or from <a href="https://virt-manager.org/download/">source</a>. Please mind that depending on your distribution, you may get an older version. For example, <code class="language-plaintext highlighter-rouge">sudo apt install virt-manager</code> installs version <code class="language-plaintext highlighter-rouge">1.5.1</code> on Ubuntu 18.04 LTS, while the latest is <code class="language-plaintext highlighter-rouge">4.0.0</code> at the time of writing. The biggest difference I have noticed regards XML editing: newer versions have an embedded editor. For older versions, you need to <code class="language-plaintext highlighter-rouge">virsh edit &lt;VM_NAME&gt;</code> from the terminal.</p>
+
+<p>Launch virt-manager to create the virtual machine. We are going to need the Windows ISO even if we already have it installed in our partition. Make sure that “Connection” is QEMU/KVM and select “Import existing disk image”, as shown in the screenshot below.</p>
+
+<p><img src="/assets/img/NewVM_KVM_1.png" alt="New VM" /></p>
+
+<p>Specify the virtual RAID array we created before as the existing drive path, i.e., <code class="language-plaintext highlighter-rouge">/dev/md0</code>. You can go further with the configuration. At the end, make sure to select “Customize configuration before install” before clicking on “Finish”. Now we can further customize the VM. I recommend adding the Windows 10 ISO (Add Hardware &gt; Storage), as we will need it for the first boot. You may also edit the default configuration as you like.</p>
+
+<p><img src="/assets/img/AddCD_2.png" alt="Add CDROM" /></p>
+
+<p>You can find my configuration at this <a href="https://gist.github.com/mp1994/9c245095105dcdc73b7b7d158684a4ff#file-win10-xml">Gist</a>. I especially recommend the following configuration blocks. For the CPU, the best setting is <code class="language-plaintext highlighter-rouge">host-passthrough</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;cpu</span> <span class="na">mode=</span><span class="s">'host-passthrough'</span> <span class="na">check=</span><span class="s">'none'</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;topology</span> <span class="na">sockets=</span><span class="s">'1'</span> <span class="na">cores=</span><span class="s">'4'</span> <span class="na">threads=</span><span class="s">'2'</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/cpu&gt;</span>
+</code></pre></div></div>
+
+<p>Next, we may change the clock configuration:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;clock</span> <span class="na">offset=</span><span class="s">'localtime'</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;timer</span> <span class="na">name=</span><span class="s">'hpet'</span> <span class="na">present=</span><span class="s">'yes'</span><span class="nt">/&gt;</span>
+  <span class="nt">&lt;timer</span> <span class="na">name=</span><span class="s">'hypervclock'</span> <span class="na">present=</span><span class="s">'yes'</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/clock&gt;</span>
+</code></pre></div></div>
+
+<p>You can also check <a href="https://github.com/Fmstrat/winapps/blob/main/docs/KVM.md">this guide</a> if you need step-by-step instructions.</p>
+
+<h3 id="first-boot">First boot</h3>
+
+<p>In the MDADM drive array we created before, we have wrapped the physical Windows partition with a virtual EFI/UEFI partition. Hence, we need to have a virtual EFI firmware on our computer. We are going to use OVMF for this purpose. First, check the <code class="language-plaintext highlighter-rouge">os</code> tag of the XML configuration and make sure the VM is using OVMF.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;os&gt;</span>
+    <span class="nt">&lt;type</span> <span class="na">arch=</span><span class="s">'x86_64'</span> <span class="na">machine=</span><span class="s">'pc-i440fx-bionic'</span><span class="nt">&gt;</span>hvm<span class="nt">&lt;/type&gt;</span>
+    <span class="nt">&lt;loader</span> <span class="na">readonly=</span><span class="s">'yes'</span> <span class="na">type=</span><span class="s">'pflash'</span><span class="nt">&gt;</span>/usr/share/OVMF/OVMF_CODE.fd<span class="nt">&lt;/loader&gt;</span>
+    <span class="nt">&lt;nvram</span> <span class="na">template=</span><span class="s">'/usr/share/OVMF/OVMF_VARS.fd'</span><span class="nt">&gt;</span>/var/lib/libvirt/qemu/nvram/Win10_VARS.fd<span class="nt">&lt;/nvram&gt;</span>
+    <span class="nt">&lt;bootmenu</span> <span class="na">enable=</span><span class="s">'yes'</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/os&gt;</span>
+</code></pre></div></div>
+
+<p>The loader (i.e., the virtual EFI firmware) is the file <code class="language-plaintext highlighter-rouge">OVMF_CODE.fd</code>. The second file is for virtual RAM. You may check your paths with <code class="language-plaintext highlighter-rouge">find / -name "OVMF_*" 2&gt;/dev/null</code>. If you can’t find it, you can install it with your packet manager (e.g., <code class="language-plaintext highlighter-rouge">sudo apt install ovmf</code>). In case of issues, checkout this <a href="https://github.com/tianocore/tianocore.github.io/wiki/How-to-run-OVMF">guide</a>.</p>
+
+<p>Make sure you have your SATA CDROM1 at the top of the Boot Options and click on “Begin Installation”. The machine should boot to the Windows installation disk. We need to assign a letter to the EFI partition to make the VM boot. If you followed the <a href="/_posts/2022-03-05-winux.md">previous post</a>, you should already have Windows installed. We just need to assign a letter to the EFI partition with <code class="language-plaintext highlighter-rouge">ðiskpart</code>. To do this, press <code class="language-plaintext highlighter-rouge">Shift+F10</code> to open up a Windows terminal.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>diskpart
+DISKPART&gt; list disk
+DISKPART&gt; <span class="k">select </span>disk 0    <span class="c"># Select the disk</span>
+DISKPART&gt; list volume      <span class="c"># Find EFI volume (partition) number</span>
+DISKPART&gt; <span class="k">select </span>volume 2  <span class="c"># Select EFI volume</span>
+DISKPART&gt; assign <span class="nv">letter</span><span class="o">=</span>B  <span class="c"># Assign B: to EFI volume</span>
+DISKPART&gt; <span class="nb">exit</span>
+</code></pre></div></div>
+
+<p>The last touch is to copy the BCD boot entry for the Windows partition to the volume we just created. From the same terminal, we can run:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bcdboot C:\Windows /s B: /f ALL
+</code></pre></div></div>
+
+<p>We can now shutdown the machine, remove the Windows ISO and boot again. Finally – after a <em>very long</em> post – we are ready to boot our physical Windows partition!</p>
+
+<p><img src="/assets/img/VM_3.png" alt="VM" /></p>
+
+<p>In case of trouble, you may debug your setup by launching directly QEMU from the terminal, by-passing <code class="language-plaintext highlighter-rouge">virt-manager</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>qemu-system-x86_64 <span class="se">\</span>
+    <span class="nt">-bios</span> /usr/share/OVMF/OVMF_CODE.fd           <span class="se">\ </span> <span class="c"># Use OVMF</span>
+    <span class="nt">-drive</span> <span class="nv">file</span><span class="o">=</span>/dev/md0,media<span class="o">=</span>disk,format<span class="o">=</span>raw   <span class="se">\ </span> <span class="c"># Boot from /dev/md0</span>
+    <span class="nt">-cpu</span> host <span class="nt">-enable-kvm</span>                        <span class="se">\ </span> <span class="c"># Copy host configuration for CPU</span>
+    <span class="nt">-m</span> 2G                                           <span class="c"># RAM (2 GB)</span>
+</code></pre></div></div>
+
+<h3 id="wrap-up">Wrap-up</h3>
+
+<p>To conclude, it is worth clearing up the ideas. We have created our KVM and booted the physical Windows partition under Linux. As mentioned, we need to create the <code class="language-plaintext highlighter-rouge">mdadm</code> array every time we reboot our physical machine. For convenience, I have set up <a href="https://gist.github.com/mp1994/9c245095105dcdc73b7b7d158684a4ff#file-mdadm-sh">this bash script</a>. <br />
+In case you need to mount the Windows partition (of course, when the VM is <em>not</em> running!!), you may stop the array with <code class="language-plaintext highlighter-rouge">sudo mdadm --stop /dev/md0</code> before.</p>
+
+<p>In a future post, I will talk about an AppIndicator that I have been developing to help managing the KVM from Ubuntu/Linux.</p>
+
+<p>  <!-- vertical space -->
+  <!-- vertical space --></p>
+
+<h5 id="references">References</h5>
+
+<p><a href="https://jianmin.dev/2020/jul/19/boot-your-windows-partition-from-linux-using-kvm/#KVM">Boot Your Windows Partition from Linux using KVM | jianmin|dev</a><br />
+<a href="https://lejenome.tik.tn/post/boot-physical-windows-inside-qemu-guest-machine">Boot physical Windows inside Qemu guest machine | Moez Bouhlel [lejenome]</a></p>
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on March 19, 2022 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>]]></content><author><name>mp1994</name></author><category term="2boot" /><category term="2boot," /><category term="dual" /><category term="boot," /><category term="kvm," /><category term="linux," /><category term="vm" /><summary type="html"><![CDATA[If you are familiar with a dual-boot configuration, you must have wondered at least once: is there a way I can avoid rebooting every time? Sometimes you just need to open an app that runs on Windows only for 5 minutes. Whatever the case may be, it would be very handy to be able to virtualize an existing partition.]]></summary></entry><entry><title type="html">Dual Boot or Virtual Machine? Easy, both!</title><link href="https://mp1994.github.io/2boot/2022-03-05-dual-boot.html" rel="alternate" type="text/html" title="Dual Boot or Virtual Machine? Easy, both!" /><published>2022-03-05T00:00:00+00:00</published><updated>2023-02-10T11:55:11+00:00</updated><id>https://mp1994.github.io/2boot/dual-boot</id><content type="html" xml:base="https://mp1994.github.io/2boot/2022-03-05-dual-boot.html"><![CDATA[<p>At the starting of my PhD in Bioengineering, back in 2019, I was running a 6-years-old MacBook Air. 
+It served me well during my bachelors and my masters, but an upgrade was overdue.<br />
+I needed a laptop for work. I did not want to use Windows. I really could not go back. I chose the new Dell XPS 13, the developer edition that runs Ubuntu (18.04) LTS out of the box. 
+A great option to save some bucks, if you don’t need Windows or you can get a license at work.</p>
+
+<p>Let’s be honest here. Either you like it or not, you still <em>need</em> Windows. I have some Windows-only software that I need to run 
+(e.g., PSoC Creator). There is also software that does not run (as well as on Windows) on Linux. Everything developed by Microsoft, for example. Office 365 is quite good these days, and well integrated with OneDrive. 
+The web version just sucks. So here I am, downloading the Windows 10 ISO on my brand-new Ubuntu-powered laptop. Is it over already?</p>
+
+<h3 id="virtualization--vs--dual-boot">Virtualization -vs- Dual Boot</h3>
+
+<p>We all know we have two options. If you have enough <em>under the hood</em>, you can just virtualize Windows and run it inside Linux. This option is fine when you need to use Windows-based programs once in a while, 
+a few apps at a time (by the way, I already recommend checking out <a href="https://github.com/Fmstrat/winapps">WinApps</a>. The <em>dual</em> option (pun intended) is setting up a dual boot. If you are not limited by disk space here, you can just reboot and fire up Windows, enjoying bare-metal performance. This makes sense if one day you need to work 
+on Windows, and you have there everything you need. This may result in frustratingly having to reboot several times per day.</p>
+
+<p>There are many factors to include trying to figure out what’s best: energy efficiency, memory efficiency, computational power, flexibility… 
+So then I figured, I could have both. Dual boot Windows and Linux, and have a Windows VM inside Linux. Do I like this solution? No. 
+I started wondering: <em>can I virtualize my Windows partition?</em> So I started digging online… and this came out.</p>
+
+<p>As of the time of writing, I am <em>successfully</em> running what I have been calling <strong>2Boot</strong>. It’s like Dual Boot v2.0. I have Ubuntu 18.04 LTS and Windows 10, 
+side-by-side in a classic dual boot configuration. What’s <em>special</em> (if anything) is that I can virtualize my Windows partition and fire up <em>the very same Win10 machine</em> as a virtual machine inside Linux, 
+with all the data and programs installed. This is great for flexibility and memory efficiency: not a single precious GB of the NVME SSD is wasted on a Virtual Disk Image.</p>
+
+<p>This post is already quite long. So I will split it into several posts that will go under the category <a href="/2boot/">2boot</a>. Stay tuned!</p>
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on March 5, 2022 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>]]></content><author><name>mp1994</name></author><category term="2boot" /><category term="2boot," /><category term="dual" /><category term="boot," /><category term="kvm," /><category term="linux," /><category term="vm" /><summary type="html"><![CDATA[At the starting of my PhD in Bioengineering, back in 2019, I was running a 6-years-old MacBook Air. It served me well during my bachelors and my masters, but an upgrade was overdue. I needed a laptop for work. I did not want to use Windows. I really could not go back. I chose the new Dell XPS 13, the developer edition that runs Ubuntu (18.04) LTS out of the box. A great option to save some bucks, if you don’t need Windows or you can get a license at work.]]></summary></entry><entry><title type="html">Windows+Linux Dual Boot</title><link href="https://mp1994.github.io/2boot/2022-03-05-winux.html" rel="alternate" type="text/html" title="Windows+Linux Dual Boot" /><published>2022-03-05T00:00:00+00:00</published><updated>2023-02-10T11:55:11+00:00</updated><id>https://mp1994.github.io/2boot/winux</id><content type="html" xml:base="https://mp1994.github.io/2boot/2022-03-05-winux.html"><![CDATA[<p>Setting up a regular dual boot configuration is quite easy. It is trivial if you are installing Linux on a partition of a Windows PC. It may be a little bit trickier the other way around. This is because <a href="https://unix.stackexchange.com/a/68587/437761">Windows will overwrite the boot sector</a> with its (stupid) MBR, throwing GRUB out of the window.</p>
+
+<p>We can fix this either manually, or we could use <a href="https://sourceforge.net/projects/boot-repair/">boot-repair</a>. We need to add its PPA before installing it with <code class="language-plaintext highlighter-rouge">apt</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>add-apt-repository ppa:yannubuntu/boot-repair
+<span class="nb">sudo </span>apt update
+<span class="nb">sudo </span>apt <span class="nb">install </span>boot-repair
+</code></pre></div></div>
+
+<p>To repair the boot sector, run <code class="language-plaintext highlighter-rouge">boot-repair</code> from the terminal and click on <em>Recommended repair</em>. Once finished, don’t forget to run <code class="language-plaintext highlighter-rouge">sudo update-grub</code>.</p>
+
+<p>  <!-- vertical space --></p>
+
+<p>That’s it. You should now have a regular dual-boot configuration with Windows and your favorite Linux distribution side by side. In the next posts, we are going to see how we can turn into something much more interesting.</p>
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on March 5, 2022 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>]]></content><author><name>mp1994</name></author><category term="2boot" /><category term="2boot," /><category term="dual" /><category term="boot," /><category term="kvm," /><category term="linux," /><category term="vm" /><summary type="html"><![CDATA[Setting up a regular dual boot configuration is quite easy. It is trivial if you are installing Linux on a partition of a Windows PC. It may be a little bit trickier the other way around. This is because Windows will overwrite the boot sector with its (stupid) MBR, throwing GRUB out of the window.]]></summary></entry><entry><title type="html">Hello World</title><link href="https://mp1994.github.io/meta/2022-02-21-hello-world.html" rel="alternate" type="text/html" title="Hello World" /><published>2022-02-21T00:00:00+00:00</published><updated>2023-02-10T11:55:11+00:00</updated><id>https://mp1994.github.io/meta/hello-world</id><content type="html" xml:base="https://mp1994.github.io/meta/2022-02-21-hello-world.html"><![CDATA[<p><em>Hello, world!</em> Here is it. You can find out more about me <a href="https://mp1994.github.io/pages/whoami">here</a>. Nothing much to say here.</p>
+
+<div class="post-date">
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on February 21, 2022 
+    </span>
+    <br /><br />
+</div>]]></content><author><name>mp1994</name></author><category term="meta" /><summary type="html"><![CDATA[Hello, world! Here is it. You can find out more about me here. Nothing much to say here.]]></summary></entry></feed>

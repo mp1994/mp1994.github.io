@@ -1,0 +1,491 @@
+<!DOCTYPE HTML>
+<html lang="en" >
+    <head><meta charset="UTF-8">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type"><title>Virtualize a Physical Windows Partition from Linux with KVM · Mattically</title><meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="description" content="Tech-related random-access memories
+"><meta name="generator" content="Jekyll (using style of GitBook 3.2.3)"><meta name="author" content="Mattia Pesenti"><link rel="stylesheet" href="https://mp1994.github.io/gitbook/style.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/website.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.css">
+
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/rouge/github.css">
+
+<meta name="HandheldFriendly" content="true"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon-precomposed" sizes="152x152" href="https://mp1994.github.io/gitbook/images/apple-touch-icon-precomposed-152.png">
+<link rel="shortcut icon" href="https://mp1994.github.io/gitbook/images/favicon.ico" type="image/x-icon">
+
+<script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']]
+        },
+        svg: {
+            fontCache: 'global'
+        }
+    };
+</script>
+
+            <link rel="prev" href="https://mp1994.github.io/2boot/2022-03-05-winux.html" />
+        
+
+        
+            <link rel="next" href="https://mp1994.github.io/2boot/2022-04-25-perf-tuning.html" />
+        
+    </head>
+    <body>
+        <div class="book"><div class="book-summary">
+    <div id="book-search-input" role="search">
+        <input type="text" placeholder="Type to search" />
+    </div>
+    <nav role="navigation">
+        <ul class="summary">
+            
+            <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io">
+            
+                <a href="https://mp1994.github.io/">
+                    Mattically
+                </a>
+            </li>
+
+            <li class="divider"></li>
+
+            
+            
+                <li class="chapter active" data-level="1.2" data-path="https://mp1994.github.io/2boot/">
+            
+                    <a href="https://mp1994.github.io/2boot/">
+                        2boot
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/linux/">
+            
+                    <a href="https://mp1994.github.io/linux/">
+                        linux
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/meta/">
+            
+                    <a href="https://mp1994.github.io/meta/">
+                        meta
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/pages/whoami/">
+            
+                    <a href="https://mp1994.github.io/pages/whoami/">
+                        whoami
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+
+
+            <!--<li>
+                <a href="https://github.com/sighingnow/jekyll-gitbook/fork" target="blank" class="gitbook-link">
+                    Fork it Now!
+                </a>
+            </li>-->
+        </ul>
+    </nav>
+</div><div class="book-body"><div class="body-inner">
+    <div class="book-header" role="navigation">
+        <!-- Title -->
+        <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i>
+            
+                <a href="." >Virtualize a Physical Windows Partition from Linux with KVM</a>
+            
+        </h1>
+    </div>
+    <div class="page-wrapper" tabindex="-1" role="main">
+        <div class="page-inner">
+            <div id="book-search-results">
+                <div class="search-noresults">
+                    <section class="normal markdown-section">
+
+                        
+                            <h1 id="/2boot/virtualize-partition">Virtualize a Physical Windows Partition from Linux with KVM</h1>
+                        
+
+                        <p>If you are familiar with a dual-boot configuration, you must have wondered at least once: <em>is there a way I can avoid rebooting every time?</em> Sometimes you just need to open an app that runs on Windows only for 5 minutes. Whatever the case may be, it would be very handy to be able to <strong>virtualize an existing partition</strong>.</p>
+
+<p>Please mind that this is not rocket science. It also isn’t something new. Yet, I remember I had to struggle a bit to get this working, and I could not find much online, so I hope this is helpful.</p>
+
+<p><strong>Long-story short: yes, we can do this</strong>. We can virtualize the Windows partition from Linux. I.e., we can create a virtual machine and use the existing Windows partition as the drive for the VM. When I started off, I was familiar only with VirtualBox. Turns out it is not that hard to make it working: you just have to create a virtual disk that points both to the Windows partition and to the UEFI partition for boot. You can check out <em>this post</em> if you prefer to use VirtualBox (coming soon; in the meantime, <a href="https://www.anginf.de/?p=685">check this out</a>).</p>
+
+<p>Today, we are going to set this up using KVM and QEMU. <strong>KVM</strong> stands for <strong>Kernel Virtual Machine</strong>. The main advantage of KVM is performance. In short, <span style="color:#1d71d1"><em>“KVM converts Linux into a type-1 (bare-metal) hypervisor”</em></span>. Hence, KVM can take advantage of the Linux kernel’s memory controller, process scheduler, I/O stack, network stack, and so on. This allows <a href="https://www.phoronix.com/scan.php?page=article&amp;item=virtualbox-60-kvm&amp;num=1">much higher performance</a> with less over-head compared to a type-2 hypervisor (e.g., VirtualBox).</p>
+
+<h3 id="building-the-virtual-disk">Building the virtual disk</h3>
+
+<p>We are going to use <code class="language-plaintext highlighter-rouge">mdadm</code> to create and manage the virtual RAID array. First, we need to check how our disk is structured. Please mind that here we are consindering a single-disk dual boot setup. <br />
+We can use <code class="language-plaintext highlighter-rouge">fdisk -l &lt;disk&gt;</code> to check our disk. Here is how the output looks like in my case.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ fdisk -l /dev/nvme0n1
+Disk /dev/nvme0n1: 477 GiB, 512110190592 bytes, 1000215216 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+(...)
+
+Device             Start       End   Sectors   Size Type
+/dev/nvme0n1p1      2048   1599487   1597440   780M EFI System
+/dev/nvme0n1p2   1599488  12085247  10485760     5G Microsoft reserved
+/dev/nvme0n1p3  12085248 821014527 808929280 385.7G Linux filesystem
+/dev/nvme0n1p4 821014528 998633471 177618944  84.7G Microsoft basic data
+</code></pre></div></div>
+
+<p>We can identify the Windows partition as the one with the label <code class="language-plaintext highlighter-rouge">nvme0n1p4</code>. Now we need to create two files: one (100 MB) to hold the partition table and the EFI partition, and the second one (1 MB) to hold a backup of the partition table. Then, we can create a loop device to associate to each of these files with <code class="language-plaintext highlighter-rouge">losetup</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">dd </span><span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span><span class="nv">$HOME</span>/efi1 <span class="nv">bs</span><span class="o">=</span>1M <span class="nv">count</span><span class="o">=</span>100
+<span class="nb">dd </span><span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span><span class="nv">$HOME</span>/efi2 <span class="nv">bs</span><span class="o">=</span>1M <span class="nv">count</span><span class="o">=</span>1
+<span class="nv">LOOP1</span><span class="o">=</span><span class="si">$(</span><span class="nb">sudo </span>losetup <span class="nt">-f</span><span class="si">)</span>
+<span class="nb">sudo </span>losetup <span class="k">${</span><span class="nv">LOOP1</span><span class="k">}</span>  <span class="nv">$HOME</span>/efi1
+<span class="nv">LOOP2</span><span class="o">=</span><span class="si">$(</span><span class="nb">sudo </span>losetup <span class="nt">-f</span><span class="si">)</span>
+<span class="nb">sudo </span>losetup <span class="k">${</span><span class="nv">LOOP2</span><span class="k">}</span> <span class="nv">$HOME</span>/efi2
+</code></pre></div></div>
+
+<p>The creation of the files <code class="language-plaintext highlighter-rouge">ef1</code> and <code class="language-plaintext highlighter-rouge">efi2</code> is a one-time procedure, while <code class="language-plaintext highlighter-rouge">losetup</code> needs to be run every time we want to boot the VM. Finally, we can merge all these with the physical partition (<code class="language-plaintext highlighter-rouge">/dev/nvme0n1p4</code>) and create the RAID array:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>mdadm <span class="nt">--build</span> <span class="nt">--verbose</span> /dev/md0 <span class="nt">--chunk</span><span class="o">=</span>512 <span class="se">\</span>
+<span class="nt">--level</span><span class="o">=</span>linear <span class="nt">--raid-devices</span><span class="o">=</span>3 <span class="k">${</span><span class="nv">LOOP1</span><span class="k">}</span> /dev/nvme0n1p4 <span class="k">${</span><span class="nv">LOOP2</span><span class="k">}</span>
+</code></pre></div></div>
+
+<p>Another one-time-only step is to create the partition table in the virtual RAID disk. We can do this with <code class="language-plaintext highlighter-rouge">parted</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>parted /dev/md0
+<span class="o">(</span>parted<span class="o">)</span> unit s
+<span class="o">(</span>parted<span class="o">)</span> mktable gpt
+<span class="o">(</span>parted<span class="o">)</span> mkpart primary fat32 2048 204799    <span class="c"># depends on size of efi1 file</span>
+<span class="o">(</span>parted<span class="o">)</span> mkpart primary ntfs 204800 <span class="nt">-2049</span>    <span class="c"># depends on size of efi1 and efi2 files</span>
+<span class="o">(</span>parted<span class="o">)</span> <span class="nb">set </span>1 boot on
+<span class="o">(</span>parted<span class="o">)</span> <span class="nb">set </span>1 esp on
+<span class="o">(</span>parted<span class="o">)</span> <span class="nb">set </span>2 msftdata on
+<span class="o">(</span>parted<span class="o">)</span> name 1 EFI
+<span class="o">(</span>parted<span class="o">)</span> name 2 Windows
+<span class="o">(</span>parted<span class="o">)</span> quit
+</code></pre></div></div>
+
+<p>With these commands, we have created the EFI partition <code class="language-plaintext highlighter-rouge">/dev/md0p1</code> and the Windows partition <code class="language-plaintext highlighter-rouge">/dev/md0p2</code>. We need to format the EFI partition with:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>mkfs.msdos <span class="nt">-F</span> 32 <span class="nt">-n</span> EFI /dev/md0p1
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">mdadm</code> array is built and ready to be used. As a last step, we need to change its ownership to allow our user to perform R/W operations on it: <code class="language-plaintext highlighter-rouge">sudo chown $USER:$USER /dev/md0</code>.</p>
+
+<h3 id="creating-a-kvm-with-virt-manager">Creating a KVM with virt-manager</h3>
+
+<p>We are going to use <strong>virt-manager</strong> (<a href="https://virt-manager.org/">Virtual Machine Manager</a>) to handle our QEMU/KVM virtual machine. The virt-manager application allows both GUI-based and XML-based configuration and uses <code class="language-plaintext highlighter-rouge">libvirt</code> for KVM machines. You can install with your packet manager, or from <a href="https://virt-manager.org/download/">source</a>. Please mind that depending on your distribution, you may get an older version. For example, <code class="language-plaintext highlighter-rouge">sudo apt install virt-manager</code> installs version <code class="language-plaintext highlighter-rouge">1.5.1</code> on Ubuntu 18.04 LTS, while the latest is <code class="language-plaintext highlighter-rouge">4.0.0</code> at the time of writing. The biggest difference I have noticed regards XML editing: newer versions have an embedded editor. For older versions, you need to <code class="language-plaintext highlighter-rouge">virsh edit &lt;VM_NAME&gt;</code> from the terminal.</p>
+
+<p>Launch virt-manager to create the virtual machine. We are going to need the Windows ISO even if we already have it installed in our partition. Make sure that “Connection” is QEMU/KVM and select “Import existing disk image”, as shown in the screenshot below.</p>
+
+<p><img src="/assets/img/NewVM_KVM_1.png" alt="New VM" /></p>
+
+<p>Specify the virtual RAID array we created before as the existing drive path, i.e., <code class="language-plaintext highlighter-rouge">/dev/md0</code>. You can go further with the configuration. At the end, make sure to select “Customize configuration before install” before clicking on “Finish”. Now we can further customize the VM. I recommend adding the Windows 10 ISO (Add Hardware &gt; Storage), as we will need it for the first boot. You may also edit the default configuration as you like.</p>
+
+<p><img src="/assets/img/AddCD_2.png" alt="Add CDROM" /></p>
+
+<p>You can find my configuration at this <a href="https://gist.github.com/mp1994/9c245095105dcdc73b7b7d158684a4ff#file-win10-xml">Gist</a>. I especially recommend the following configuration blocks. For the CPU, the best setting is <code class="language-plaintext highlighter-rouge">host-passthrough</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;cpu</span> <span class="na">mode=</span><span class="s">'host-passthrough'</span> <span class="na">check=</span><span class="s">'none'</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;topology</span> <span class="na">sockets=</span><span class="s">'1'</span> <span class="na">cores=</span><span class="s">'4'</span> <span class="na">threads=</span><span class="s">'2'</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/cpu&gt;</span>
+</code></pre></div></div>
+
+<p>Next, we may change the clock configuration:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;clock</span> <span class="na">offset=</span><span class="s">'localtime'</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;timer</span> <span class="na">name=</span><span class="s">'hpet'</span> <span class="na">present=</span><span class="s">'yes'</span><span class="nt">/&gt;</span>
+  <span class="nt">&lt;timer</span> <span class="na">name=</span><span class="s">'hypervclock'</span> <span class="na">present=</span><span class="s">'yes'</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/clock&gt;</span>
+</code></pre></div></div>
+
+<p>You can also check <a href="https://github.com/Fmstrat/winapps/blob/main/docs/KVM.md">this guide</a> if you need step-by-step instructions.</p>
+
+<h3 id="first-boot">First boot</h3>
+
+<p>In the MDADM drive array we created before, we have wrapped the physical Windows partition with a virtual EFI/UEFI partition. Hence, we need to have a virtual EFI firmware on our computer. We are going to use OVMF for this purpose. First, check the <code class="language-plaintext highlighter-rouge">os</code> tag of the XML configuration and make sure the VM is using OVMF.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;os&gt;</span>
+    <span class="nt">&lt;type</span> <span class="na">arch=</span><span class="s">'x86_64'</span> <span class="na">machine=</span><span class="s">'pc-i440fx-bionic'</span><span class="nt">&gt;</span>hvm<span class="nt">&lt;/type&gt;</span>
+    <span class="nt">&lt;loader</span> <span class="na">readonly=</span><span class="s">'yes'</span> <span class="na">type=</span><span class="s">'pflash'</span><span class="nt">&gt;</span>/usr/share/OVMF/OVMF_CODE.fd<span class="nt">&lt;/loader&gt;</span>
+    <span class="nt">&lt;nvram</span> <span class="na">template=</span><span class="s">'/usr/share/OVMF/OVMF_VARS.fd'</span><span class="nt">&gt;</span>/var/lib/libvirt/qemu/nvram/Win10_VARS.fd<span class="nt">&lt;/nvram&gt;</span>
+    <span class="nt">&lt;bootmenu</span> <span class="na">enable=</span><span class="s">'yes'</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/os&gt;</span>
+</code></pre></div></div>
+
+<p>The loader (i.e., the virtual EFI firmware) is the file <code class="language-plaintext highlighter-rouge">OVMF_CODE.fd</code>. The second file is for virtual RAM. You may check your paths with <code class="language-plaintext highlighter-rouge">find / -name "OVMF_*" 2&gt;/dev/null</code>. If you can’t find it, you can install it with your packet manager (e.g., <code class="language-plaintext highlighter-rouge">sudo apt install ovmf</code>). In case of issues, checkout this <a href="https://github.com/tianocore/tianocore.github.io/wiki/How-to-run-OVMF">guide</a>.</p>
+
+<p>Make sure you have your SATA CDROM1 at the top of the Boot Options and click on “Begin Installation”. The machine should boot to the Windows installation disk. We need to assign a letter to the EFI partition to make the VM boot. If you followed the <a href="/_posts/2022-03-05-winux.md">previous post</a>, you should already have Windows installed. We just need to assign a letter to the EFI partition with <code class="language-plaintext highlighter-rouge">ðiskpart</code>. To do this, press <code class="language-plaintext highlighter-rouge">Shift+F10</code> to open up a Windows terminal.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>diskpart
+DISKPART&gt; list disk
+DISKPART&gt; <span class="k">select </span>disk 0    <span class="c"># Select the disk</span>
+DISKPART&gt; list volume      <span class="c"># Find EFI volume (partition) number</span>
+DISKPART&gt; <span class="k">select </span>volume 2  <span class="c"># Select EFI volume</span>
+DISKPART&gt; assign <span class="nv">letter</span><span class="o">=</span>B  <span class="c"># Assign B: to EFI volume</span>
+DISKPART&gt; <span class="nb">exit</span>
+</code></pre></div></div>
+
+<p>The last touch is to copy the BCD boot entry for the Windows partition to the volume we just created. From the same terminal, we can run:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bcdboot C:\Windows /s B: /f ALL
+</code></pre></div></div>
+
+<p>We can now shutdown the machine, remove the Windows ISO and boot again. Finally – after a <em>very long</em> post – we are ready to boot our physical Windows partition!</p>
+
+<p><img src="/assets/img/VM_3.png" alt="VM" /></p>
+
+<p>In case of trouble, you may debug your setup by launching directly QEMU from the terminal, by-passing <code class="language-plaintext highlighter-rouge">virt-manager</code>:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>qemu-system-x86_64 <span class="se">\</span>
+    <span class="nt">-bios</span> /usr/share/OVMF/OVMF_CODE.fd           <span class="se">\ </span> <span class="c"># Use OVMF</span>
+    <span class="nt">-drive</span> <span class="nv">file</span><span class="o">=</span>/dev/md0,media<span class="o">=</span>disk,format<span class="o">=</span>raw   <span class="se">\ </span> <span class="c"># Boot from /dev/md0</span>
+    <span class="nt">-cpu</span> host <span class="nt">-enable-kvm</span>                        <span class="se">\ </span> <span class="c"># Copy host configuration for CPU</span>
+    <span class="nt">-m</span> 2G                                           <span class="c"># RAM (2 GB)</span>
+</code></pre></div></div>
+
+<h3 id="wrap-up">Wrap-up</h3>
+
+<p>To conclude, it is worth clearing up the ideas. We have created our KVM and booted the physical Windows partition under Linux. As mentioned, we need to create the <code class="language-plaintext highlighter-rouge">mdadm</code> array every time we reboot our physical machine. For convenience, I have set up <a href="https://gist.github.com/mp1994/9c245095105dcdc73b7b7d158684a4ff#file-mdadm-sh">this bash script</a>. <br />
+In case you need to mount the Windows partition (of course, when the VM is <em>not</em> running!!), you may stop the array with <code class="language-plaintext highlighter-rouge">sudo mdadm --stop /dev/md0</code> before.</p>
+
+<p>In a future post, I will talk about an AppIndicator that I have been developing to help managing the KVM from Ubuntu/Linux.</p>
+
+<p>  <!-- vertical space -->
+  <!-- vertical space --></p>
+
+<h5 id="references">References</h5>
+
+<p><a href="https://jianmin.dev/2020/jul/19/boot-your-windows-partition-from-linux-using-kvm/#KVM">Boot Your Windows Partition from Linux using KVM | jianmin|dev</a><br />
+<a href="https://lejenome.tik.tn/post/boot-physical-windows-inside-qemu-guest-machine">Boot physical Windows inside Qemu guest machine | Moez Bouhlel [lejenome]</a></p>
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on March 19, 2022 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>
+
+                    </section>
+                </div><div class="search-results">
+    <div class="has-results">
+        <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+        <ul class="search-results-list"></ul>
+    </div>
+    <div class="no-results">
+        <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+    </div>
+</div></div>
+        </div>
+    </div>
+</div>
+
+                    <a href="https://mp1994.github.io/2boot/2022-03-05-winux.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Windows+Linux Dual Boot">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+
+                
+                    <a href="https://mp1994.github.io/2boot/2022-04-25-perf-tuning.html" class="navigation navigation-next navigation-unique" aria-label="Next page: Tuning KVM for Best Performance">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                
+            </div>
+
+            <script src="/assets/scripts/copyCode.js"></script>
+            <script>
+            var gitbook = gitbook || [];
+            gitbook.push(function() {
+                gitbook.page.hasChanged({
+    "page": {
+        "title": "Introduction",
+        "level": "1.1",
+        "depth": 1,
+        
+        "next": {
+            "title": "Tuning KVM for Best Performance",
+            "level": "1.2",
+            "depth": 1,
+            "path": "_posts/2022-04-25-perf-tuning.md",
+            "ref": "_posts/2022-04-25-perf-tuning.md",
+            "articles": []
+        },
+        
+        "dir": "ltr"
+    },    "config": {
+        "plugins": ["fontsettings", "highlight", "livereload", "lunr", "search", "sharing", "theme-default", "livereload"],
+        "styles": {
+            "ebook": "styles/ebook.css",
+            "epub": "styles/epub.css",
+            "mobi": "styles/mobi.css",
+            "pdf": "styles/pdf.css",
+            "print": "styles/print.css",
+            "website": "styles/website.css"
+        },
+        "pluginsConfig": {
+            "fontsettings": {
+                "family": "sans",
+                "size": 2,
+                "theme": "white"
+            },
+            "highlight": {},
+            "livereload": {},
+            "lunr": {
+                "ignoreSpecialCharacters": false,
+                "maxIndexSize": 1000000
+            },
+            "search": {},
+            "sharing": {
+                "all": ["facebook", "google", "twitter", "weibo", "instapaper"],
+                "facebook": true,
+                "google": false,
+                "instapaper": false,
+                "twitter": true,
+                "vk": false,
+                "weibo": false
+            },
+            "theme-default": {
+                "showLevel": false,
+                "styles": {
+                    "ebook": "styles/ebook.css",
+                    "epub": "styles/epub.css",
+                    "mobi": "styles/mobi.css",
+                    "pdf": "styles/pdf.css",
+                    "print": "styles/print.css",
+                    "website": "styles/website.css"
+                }
+            }
+        },
+        "theme": "default",
+        "author": "Tao He",
+        "pdf": {
+            "pageNumbers": true,
+            "fontSize": 12,
+            "fontFamily": "Arial",
+            "paperSize": "a4",
+            "chapterMark": "pagebreak",
+            "pageBreaksBefore": "/",
+            "margin": {
+                "right": 62,
+                "left": 62,
+                "top": 56,
+                "bottom": 56
+            }
+        },
+        "structure": {
+            "langs": "LANGS.md",
+            "readme": "README.md",
+        },
+        "variables": {},
+        "title": "Mattically",
+        "language": "en",
+        "gitbook": "*"
+    },
+    "file": {
+        "path": "_posts/2022-03-19-virtualize-partition.md",
+        "mtime": "2022-03-19 00:00:00 +0000",
+        "type": "markdown"
+    },
+    "gitbook": {
+        "version": "3.2.3",
+        "time": "2023-02-10 11:55:32 +0000"
+    },
+    "basePath": "https://mp1994.github.io",
+    "book": {
+        "language": ""
+    }
+});
+            });
+            </script>
+        </div><script src="https://mp1994.github.io/gitbook/gitbook.js"></script>
+<script src="https://mp1994.github.io/gitbook/theme.js"></script>
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-sharing/buttons.js"></script>
+
+<!-- <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+<script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search.js"></script> -->
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/jquery.mark.min.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.js"></script>
+
+<script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<script async src="//static.getclicky.com/101356528.js"></script>
+<noscript><p><img alt="Clicky" width="1" height="1" src="//in.getclicky.com/101356528ns.gif" /></p></noscript>
+</body>
+</html>

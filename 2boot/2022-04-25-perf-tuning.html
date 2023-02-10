@@ -1,0 +1,423 @@
+<!DOCTYPE HTML>
+<html lang="en" >
+    <head><meta charset="UTF-8">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type"><title>Tuning KVM for Best Performance · Mattically</title><meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="description" content="Tech-related random-access memories
+"><meta name="generator" content="Jekyll (using style of GitBook 3.2.3)"><meta name="author" content="Mattia Pesenti"><link rel="stylesheet" href="https://mp1994.github.io/gitbook/style.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/website.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.css">
+
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/rouge/github.css">
+
+<meta name="HandheldFriendly" content="true"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon-precomposed" sizes="152x152" href="https://mp1994.github.io/gitbook/images/apple-touch-icon-precomposed-152.png">
+<link rel="shortcut icon" href="https://mp1994.github.io/gitbook/images/favicon.ico" type="image/x-icon">
+
+<script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']]
+        },
+        svg: {
+            fontCache: 'global'
+        }
+    };
+</script>
+
+            <link rel="prev" href="https://mp1994.github.io/2boot/2022-03-19-virtualize-partition.html" />
+        
+
+        
+            <link rel="next" href="https://mp1994.github.io/linux/2022-09-05-preempt-patch.html" />
+        
+    </head>
+    <body>
+        <div class="book"><div class="book-summary">
+    <div id="book-search-input" role="search">
+        <input type="text" placeholder="Type to search" />
+    </div>
+    <nav role="navigation">
+        <ul class="summary">
+            
+            <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io">
+            
+                <a href="https://mp1994.github.io/">
+                    Mattically
+                </a>
+            </li>
+
+            <li class="divider"></li>
+
+            
+            
+                <li class="chapter active" data-level="1.2" data-path="https://mp1994.github.io/2boot/">
+            
+                    <a href="https://mp1994.github.io/2boot/">
+                        2boot
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/linux/">
+            
+                    <a href="https://mp1994.github.io/linux/">
+                        linux
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/meta/">
+            
+                    <a href="https://mp1994.github.io/meta/">
+                        meta
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/pages/whoami/">
+            
+                    <a href="https://mp1994.github.io/pages/whoami/">
+                        whoami
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+
+
+            <!--<li>
+                <a href="https://github.com/sighingnow/jekyll-gitbook/fork" target="blank" class="gitbook-link">
+                    Fork it Now!
+                </a>
+            </li>-->
+        </ul>
+    </nav>
+</div><div class="book-body"><div class="body-inner">
+    <div class="book-header" role="navigation">
+        <!-- Title -->
+        <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i>
+            
+                <a href="." >Tuning KVM for Best Performance</a>
+            
+        </h1>
+    </div>
+    <div class="page-wrapper" tabindex="-1" role="main">
+        <div class="page-inner">
+            <div id="book-search-results">
+                <div class="search-noresults">
+                    <section class="normal markdown-section">
+
+                        
+                            <h1 id="/2boot/perf-tuning">Tuning KVM for Best Performance</h1>
+                        
+
+                        <p>In the previous posts, we have set up a Kernel Virtual Machine (KVM) with <code class="language-plaintext highlighter-rouge">libvirt</code> and <code class="language-plaintext highlighter-rouge">qemu</code>. We have seen how type-I hypervisors allow almost bare-metal performance. With this post, I am going to talk about some tweaking and tuning we can do to further optimize KVM performance.</p>
+
+<p><a href="https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Performance_tuning">Performance tuning</a> is very well described in the Arch Linux wiki. Here we are going to see a few optimization steps to improve the performance of our VM.</p>
+
+<h3 id="cpu-pinning">CPU pinning</h3>
+
+<p>The first and easiest step is to enable CPU pinning. By default, KVM handles guests as normal threads representing virtual processors. These threads are managed by the <a href="https://docs.kernel.org/scheduler/index.html">Linux scheduler</a> like any other thread, being assigned to any available CPU cores based on <a href="https://man7.org/linux/man-pages/man2/nice.2.html">niceness</a> and priority queues. As a result, the local CPU cache benefits (L1/L2/L3) are lost each time the host scheduler reschedules the virtual CPU thread on a different physical CPU. This can noticeably harm performance on the guest. <strong>CPU pinning</strong> aims to resolve this by limiting which physical CPUs the virtual CPUs are allowed to run on. The ideal setup is a 1:1 mapping such that the virtual CPU cores match physical CPU cores.</p>
+
+<p><code class="language-plaintext highlighter-rouge">lscpu -e</code> shows the CPU topology: hyper-threading splits physical CPU cores (<code class="language-plaintext highlighter-rouge">CORE</code>) into virtual CPUs (<code class="language-plaintext highlighter-rouge">CPU</code>).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CPU NODE SOCKET CORE L1d:L1i:L2:L3 ONLINE MAXMHZ    MINMHZ
+0   0    0      0    0:0:0:0       yes    4900.0000 400.0000
+1   0    0      1    1:1:1:0       yes    4900.0000 400.0000
+2   0    0      2    2:2:2:0       yes    4900.0000 400.0000
+3   0    0      3    3:3:3:0       yes    4900.0000 400.0000
+4   0    0      0    0:0:0:0       yes    4900.0000 400.0000
+5   0    0      1    1:1:1:0       yes    4900.0000 400.0000
+6   0    0      2    2:2:2:0       yes    4900.0000 400.0000
+7   0    0      3    3:3:3:0       yes    4900.0000 400.0000
+</code></pre></div></div>
+
+<p>In my case (Intel i7-10510U), for example, the physical core 0 is split into virtual CPUs 0 and 4. As mentioned above, to optimize performance, we should passthrough virtual CPUs that correspond to physical CPU cores, sharing the lowest level CPU cache (L1 and L2). Core 0 should remain assigned to the host <a href="https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Performance_tuning">1</a>. To optimize performance, I have assigned vCPUs 2-7 to my Windows guest adding the following to the VM’s XML file.</p>
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nt">&lt;vcpu</span> <span class="na">placement=</span><span class="s">'static'</span><span class="nt">&gt;</span>6<span class="nt">&lt;/vcpu&gt;</span>
+  <span class="nt">&lt;cputune&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'0'</span> <span class="na">cpuset=</span><span class="s">'1'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'1'</span> <span class="na">cpuset=</span><span class="s">'5'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'2'</span> <span class="na">cpuset=</span><span class="s">'2'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'3'</span> <span class="na">cpuset=</span><span class="s">'6'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'4'</span> <span class="na">cpuset=</span><span class="s">'3'</span><span class="nt">/&gt;</span>
+    <span class="nt">&lt;vcpupin</span> <span class="na">vcpu=</span><span class="s">'5'</span> <span class="na">cpuset=</span><span class="s">'7'</span><span class="nt">/&gt;</span>
+  <span class="nt">&lt;/cputune&gt;</span>
+</code></pre></div></div>
+
+<p>In the configuration, <code class="language-plaintext highlighter-rouge">vcpu</code> is the virtual CPU ID for the guest, while <code class="language-plaintext highlighter-rouge">cpuset</code> should correspond to <code class="language-plaintext highlighter-rouge">CPU</code> as reported by <code class="language-plaintext highlighter-rouge">lscpu -e</code>. I have left only <code class="language-plaintext highlighter-rouge">CORE 0</code> to the Linux host, as I don’t plan to run heavy tasks on Linux while using the Windows guest.</p>
+
+<h3 id="frequency-scaling">Frequency Scaling</h3>
+
+<p>Modern CPUs do not run at a fixed clock frequency. They have a base clock, a minimum and a maximum (or turbo) frequency. Frequency modulation is a clever solution for the trade off between power saving and performance. These days, things are getting more and more complicated (partially because of nonsense marketing terminology). Let’s define the following: the <em>minimum frequency</em> is the lowest the CPU settles to at idle. This is 800 MHz on my Intel i7-10510U. Then, there is the <em>nominal frequency</em> (or <em>base</em> frequency), 1800 MHz in my case: let’s say this is the minimum frequency to which the CPU should be when <em>not</em> at idle. Depending on thermal headroom and load, the CPU frequency can increase in steps: the first step is the <em>multi-core regular turbo</em> frequency (2300 MHz), up to the <em>absolute maximum turbo</em> frequency (4900 MHz). The latter is often a single-core peak that may be reached only for brief bursts of power. The CPU will be mostly running at the <em>regular turbo</em> frequency under sustained, multi-core loads. This behavior is controlled by the <strong>CPU scaling governor</strong>. 
+Modern Intel CPUs use the <code class="language-plaintext highlighter-rouge">intel pstate</code> governor <a href="https://www.kernel.org/doc/html/v4.12/admin-guide/pm/intel_pstate.html">2</a>.</p>
+
+<p>Frequency scaling can affect the performance of our virtual machines. Briefly, to assure optimal performance in our KVM guests, we should check whether CPU frequency scales correctly under an increased load from the guest. We can check the current CPU frequency in several ways. The command <code class="language-plaintext highlighter-rouge">lscpu</code> shows many information about our CPU, including the current frequency. If we want to look at per-core CPU frequency, this is stored in several files (as typically done in Linux). Specifically, this info can be accessed with:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>watch -n1 cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq
+</code></pre></div></div>
+
+<p>The command <code class="language-plaintext highlighter-rouge">watch -n1</code> will refresh the output of <code class="language-plaintext highlighter-rouge">cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq</code> every second.</p>
+
+<h3 id="benchmarking">Benchmarking</h3>
+
+<p>Let us end this post with some benchmarks to quantify CPU performance tuning. I have chosen a very simple and quick benchmark with <a href="https://www.mersenne.org/download/">Prime95</a>. I have chosen Prime95 for two reasons: it is multi-platform, thus it will run both on Linux and Windows, and it allows to select the number of CPU cores to stress test. I will test 3 cores with hyperthreading enabled both on Linux and on the Windows KVM.</p>
+
+<p>I have set up the throughput benchmark with a 2048K FFT for 15 seconds. I have run the test in several configurations:</p>
+
+<ul>
+<li> Default CPU topology: 2 sockets, 1 core, 1 thread (total of 2 vCPUs) </li>
+<li> Manual CPU topology w/o CPU pinning: 1 socket, 3 cores, 2 threads (total of 6 vCPUs) </li>
+<li> Manual CPU topology w/ CPU pinning: 1 socket, 3 cores, 2 threads (total of 6 vCPUs) </li>
+<li> Bare metal on Linux (total of 6 vCPUs) </li>
+<!--<li> Bare metal on Windows (total of 6 vCPUs) </li> -->
+</ul>
+
+<p>Of course, bare-metal performance (267.97 iter/sec) are higher than every KVM configuration. Nevertheless, we notice how manually tweaking CPU topology dramatically improves performance from 66.57 iter/sec up to &gt;200 iter/sec. CPU pinning further improves performance of ~13%. KVM performance with CPU pinning reaches almost 87% of the bare-metal performance. Below the full results for each configuration.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center"> </th>
+      <th style="text-align: center"><strong>Worker 1</strong> [ms]</th>
+      <th style="text-align: center"><strong>Worker 2</strong> [ms]</th>
+      <th style="text-align: center"><strong>Worker 3</strong> [ms]</th>
+      <th style="text-align: center"><strong>Throughput</strong> [iter/s]</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center">1</td>
+      <td style="text-align: center">32.60</td>
+      <td style="text-align: center">27.86</td>
+      <td style="text-align: center">/</td>
+      <td style="text-align: center">66.57</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">2</td>
+      <td style="text-align: center">15.47</td>
+      <td style="text-align: center">14.41</td>
+      <td style="text-align: center">14.22</td>
+      <td style="text-align: center">204.31</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">3</td>
+      <td style="text-align: center">13.40</td>
+      <td style="text-align: center">12.73</td>
+      <td style="text-align: center">12.80</td>
+      <td style="text-align: center">231.31</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">4</td>
+      <td style="text-align: center">14.60</td>
+      <td style="text-align: center">14.17</td>
+      <td style="text-align: center">7.76</td>
+      <td style="text-align: center">267.97</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- --- comments
+CPU max clock 2400 MHz on Linux with `powersave` governor (nominal: 1800 MHz, "regular" turbo 2300 MHz, max turbo 4900 MHz)
+CPU freq ramps up to >4000 MHz **on idle** with `performance`, and then drops down to 3000 MHz under 100% load (scikit-learn model training) > WTF ??
+Geekbench5 on linux: 733 2875
+              Win10: 483 1851 (66% single core)
+---
+
+https://unix.stackexchange.com/questions/64297/host-cpu-does-not-scale-frequency-when-kvm-guest-needs-it
+https://forums.unraid.net/topic/44961-fps-drops-stuttering-and-other-things-that-make-me-sad/#comment-443617
+https://www.intel.com/content/www/us/en/developer/articles/guide/kvm-tuning-guide-on-xeon-based-systems.html
+https://www.kernel.org/doc/html/latest/admin-guide/pm/intel_pstate.html -->
+
+<!-- https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Setting_up_IOMMU
+Enable IOMMU ?
+
+Enable IOMMU with GRUB: https://devopstales.github.io/linux/proxmox-pci-passthrough/
+Set GRUB_CMDLINE_LINUX_DEFAULT="quiet splash intel_iommu=on iommu=pt" in /etc/default/grub
+then `sudo update-grub && reboot`
+
+# USB passthrough
+works out-of-the-box with virt-manager / virt-viewer
+
+udev rules:
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0c45", ATTRS{idProduct}=="6723", MODE="0666", TAG+="uaccess"
+reboot
+
+test libusb script (link repo github) -->
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on April 25, 2022 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>
+
+                    </section>
+                </div><div class="search-results">
+    <div class="has-results">
+        <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+        <ul class="search-results-list"></ul>
+    </div>
+    <div class="no-results">
+        <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+    </div>
+</div></div>
+        </div>
+    </div>
+</div>
+
+                    <a href="https://mp1994.github.io/2boot/2022-03-19-virtualize-partition.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Virtualize a Physical Windows Partition from Linux with KVM">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+
+                
+                    <a href="https://mp1994.github.io/linux/2022-09-05-preempt-patch.html" class="navigation navigation-next navigation-unique" aria-label="Next page: Real-time PREEMPT patch for the Linux Kernel">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                
+            </div>
+
+            <script src="/assets/scripts/copyCode.js"></script>
+            <script>
+            var gitbook = gitbook || [];
+            gitbook.push(function() {
+                gitbook.page.hasChanged({
+    "page": {
+        "title": "Introduction",
+        "level": "1.1",
+        "depth": 1,
+        
+        "next": {
+            "title": "Real-time PREEMPT patch for the Linux Kernel",
+            "level": "1.2",
+            "depth": 1,
+            "path": "_posts/2022-09-05-preempt-patch.md",
+            "ref": "_posts/2022-09-05-preempt-patch.md",
+            "articles": []
+        },
+        
+        "dir": "ltr"
+    },    "config": {
+        "plugins": ["fontsettings", "highlight", "livereload", "lunr", "search", "sharing", "theme-default", "livereload"],
+        "styles": {
+            "ebook": "styles/ebook.css",
+            "epub": "styles/epub.css",
+            "mobi": "styles/mobi.css",
+            "pdf": "styles/pdf.css",
+            "print": "styles/print.css",
+            "website": "styles/website.css"
+        },
+        "pluginsConfig": {
+            "fontsettings": {
+                "family": "sans",
+                "size": 2,
+                "theme": "white"
+            },
+            "highlight": {},
+            "livereload": {},
+            "lunr": {
+                "ignoreSpecialCharacters": false,
+                "maxIndexSize": 1000000
+            },
+            "search": {},
+            "sharing": {
+                "all": ["facebook", "google", "twitter", "weibo", "instapaper"],
+                "facebook": true,
+                "google": false,
+                "instapaper": false,
+                "twitter": true,
+                "vk": false,
+                "weibo": false
+            },
+            "theme-default": {
+                "showLevel": false,
+                "styles": {
+                    "ebook": "styles/ebook.css",
+                    "epub": "styles/epub.css",
+                    "mobi": "styles/mobi.css",
+                    "pdf": "styles/pdf.css",
+                    "print": "styles/print.css",
+                    "website": "styles/website.css"
+                }
+            }
+        },
+        "theme": "default",
+        "author": "Tao He",
+        "pdf": {
+            "pageNumbers": true,
+            "fontSize": 12,
+            "fontFamily": "Arial",
+            "paperSize": "a4",
+            "chapterMark": "pagebreak",
+            "pageBreaksBefore": "/",
+            "margin": {
+                "right": 62,
+                "left": 62,
+                "top": 56,
+                "bottom": 56
+            }
+        },
+        "structure": {
+            "langs": "LANGS.md",
+            "readme": "README.md",
+        },
+        "variables": {},
+        "title": "Mattically",
+        "language": "en",
+        "gitbook": "*"
+    },
+    "file": {
+        "path": "_posts/2022-04-25-perf-tuning.md",
+        "mtime": "2022-04-25 00:00:00 +0000",
+        "type": "markdown"
+    },
+    "gitbook": {
+        "version": "3.2.3",
+        "time": "2023-02-10 11:55:32 +0000"
+    },
+    "basePath": "https://mp1994.github.io",
+    "book": {
+        "language": ""
+    }
+});
+            });
+            </script>
+        </div><script src="https://mp1994.github.io/gitbook/gitbook.js"></script>
+<script src="https://mp1994.github.io/gitbook/theme.js"></script>
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-sharing/buttons.js"></script>
+
+<!-- <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+<script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search.js"></script> -->
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/jquery.mark.min.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.js"></script>
+
+<script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<script async src="//static.getclicky.com/101356528.js"></script>
+<noscript><p><img alt="Clicky" width="1" height="1" src="//in.getclicky.com/101356528ns.gif" /></p></noscript>
+</body>
+</html>

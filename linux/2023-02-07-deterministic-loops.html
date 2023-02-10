@@ -1,0 +1,407 @@
+<!DOCTYPE HTML>
+<html lang="en" >
+    <head><meta charset="UTF-8">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type"><title>Deterministic and reliable execution of loop functions in C/C++ · Mattically</title><meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="description" content="Tech-related random-access memories
+"><meta name="generator" content="Jekyll (using style of GitBook 3.2.3)"><meta name="author" content="Mattia Pesenti"><link rel="stylesheet" href="https://mp1994.github.io/gitbook/style.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/website.css">
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.css">
+
+<link rel="stylesheet" href="https://mp1994.github.io/gitbook/rouge/github.css">
+
+<meta name="HandheldFriendly" content="true"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon-precomposed" sizes="152x152" href="https://mp1994.github.io/gitbook/images/apple-touch-icon-precomposed-152.png">
+<link rel="shortcut icon" href="https://mp1994.github.io/gitbook/images/favicon.ico" type="image/x-icon">
+
+<script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']]
+        },
+        svg: {
+            fontCache: 'global'
+        }
+    };
+</script>
+
+            <link rel="prev" href="https://mp1994.github.io/linux/2022-09-05-preempt-patch.html" />
+        
+
+        
+    </head>
+    <body>
+        <div class="book"><div class="book-summary">
+    <div id="book-search-input" role="search">
+        <input type="text" placeholder="Type to search" />
+    </div>
+    <nav role="navigation">
+        <ul class="summary">
+            
+            <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io">
+            
+                <a href="https://mp1994.github.io/">
+                    Mattically
+                </a>
+            </li>
+
+            <li class="divider"></li>
+
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/2boot/">
+            
+                    <a href="https://mp1994.github.io/2boot/">
+                        2boot
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter active" data-level="1.2" data-path="https://mp1994.github.io/linux/">
+            
+                    <a href="https://mp1994.github.io/linux/">
+                        linux
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/meta/">
+            
+                    <a href="https://mp1994.github.io/meta/">
+                        meta
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+            
+                <li class="chapter" data-level="1.1" data-path="https://mp1994.github.io/pages/whoami/">
+            
+                    <a href="https://mp1994.github.io/pages/whoami/">
+                        whoami
+                    </a>
+                    
+                        
+                    
+                </li>
+            
+
+
+            <!--<li>
+                <a href="https://github.com/sighingnow/jekyll-gitbook/fork" target="blank" class="gitbook-link">
+                    Fork it Now!
+                </a>
+            </li>-->
+        </ul>
+    </nav>
+</div><div class="book-body"><div class="body-inner">
+    <div class="book-header" role="navigation">
+        <!-- Title -->
+        <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i>
+            
+                <a href="." >Deterministic and reliable execution of loop functions in C/C++</a>
+            
+        </h1>
+    </div>
+    <div class="page-wrapper" tabindex="-1" role="main">
+        <div class="page-inner">
+            <div id="book-search-results">
+                <div class="search-noresults">
+                    <section class="normal markdown-section">
+
+                        
+                            <h1 id="/linux/deterministic-loops">Deterministic and reliable execution of loop functions in C/C++</h1>
+                        
+
+                        <p>This post illustrates how to execute in a reliable and <em>deterministic</em> way a function at a (fixed) frequency, i.e. after a user-defined time interval that we’ll call <em>cycle time</em>. In the following, we will implement a basic loop function with timer re-arming and self-benchmarking features, and we will wrap it to <em>hide</em> this functionalities to the end user, allowing them to only change the user code that will be executed in the loop. For variable cycle durations, or to implement an adaptive frequency (e.g., switch between <em>idle</em> state and <em>active</em> state), we could also expose to the user timer re-arming. As always, the implementation and the code shown below are tested on Linux only and are not guaranteed to work under any other OS.</p>
+
+<h2 id="sigalrm">SIGALRM</h2>
+<p>Under Linux, POSIX provides the <code class="language-plaintext highlighter-rouge">SIGALRM</code> signal that fires when a timer expires. We can exploit the <code class="language-plaintext highlighter-rouge">alarm(int seconds)</code> function to set the <code class="language-plaintext highlighter-rouge">SIGALRM</code> after a specified time interval in seconds. This can execute any function we previously assigned to this signal.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="c1">// Loop function</span>
+<span class="kt">void</span> <span class="nf">loop_function</span><span class="p">(</span><span class="kt">int</span> <span class="n">s</span><span class="p">)</span> <span class="p">{</span>
+    
+<span class="p">}</span>
+
+<span class="c1">// Link our callback to the SIGALRM signal</span>
+<span class="n">signal</span><span class="p">(</span><span class="n">SIGALRM</span><span class="p">,</span> <span class="n">loop_function</span><span class="p">);</span>
+<span class="c1">// Set the timer to expire in 2 seconds</span>
+<span class="n">alarm</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span></code></pre></figure>
+
+<p>The main limitation of this approach is that <code class="language-plaintext highlighter-rouge">alarm()</code> takes an integer (<code class="language-plaintext highlighter-rouge">unsigned int</code>) and thus we cannot achieve sub-second precision. One could use <code class="language-plaintext highlighter-rouge">setitimer()</code> instead, but we are not going to do that. Instead, we are going to take advantage of the <a href="https://www.boost.org/">Boost</a> library.</p>
+
+<h2 id="boost-asio">Boost ASIO</h2>
+
+<p>Asynchronous input/output (ASIO) allows concurrent, non-blocking I/O operations to run without affecting the main program. In my (limited) experience, <a href="https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/rationale.html">Boost.Asio</a> is the way to go for C++ applications that require asynchronous I/O. The <a href="https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio.html">documentation</a> also contains useful tutorials and examples. Please mind that I have been posting links to Boost version <code class="language-plaintext highlighter-rouge">1.65.1</code> since it is the version installed by <code class="language-plaintext highlighter-rouge">apt</code> on Ubuntu 18.04 LTS.</p>
+
+<h3 id="deadline_timer">deadline_timer</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">basic_deadline_timer</code> class template provides the ability to perform a blocking or asynchronous wait for a timer to expire. The <code class="language-plaintext highlighter-rouge">wait()</code> method can be used to wait for the timer to expire while blocking the execution of the current thread, while we can use <code class="language-plaintext highlighter-rouge">async_wait()</code> to avoid blocking thread’s execution while waiting for the deadline timer to expire.</p>
+
+<p>To create a deadline timer, we need few lines of code:</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="c1">// IO service that handles the deadline_timer</span>
+<span class="n">boost</span><span class="o">::</span><span class="n">asio</span><span class="o">::</span><span class="n">io_service</span> <span class="n">timer_io</span><span class="p">;</span>
+
+<span class="c1">// Create the timer object</span>
+<span class="n">boost</span><span class="o">::</span><span class="n">asio</span><span class="o">::</span><span class="n">deadline_timer</span> <span class="nf">t</span><span class="p">(</span><span class="n">timer_io</span><span class="p">);</span>
+<span class="c1">// Set the expire time relative to the current time</span>
+<span class="n">t</span><span class="p">.</span><span class="n">expires_from_now</span><span class="p">(</span><span class="n">boost</span><span class="o">::</span><span class="n">posix_time</span><span class="o">::</span><span class="n">seconds</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span>
+
+<span class="c1">// Non-blocking wait</span>
+<span class="n">t</span><span class="p">.</span><span class="n">async_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">loop_function</span><span class="p">);</span>
+
+<span class="c1">// Start the timer</span>
+<span class="c1">// The IO service run() is blocking, so the main thread</span>
+<span class="c1">// will be blocked by this function call.</span>
+<span class="n">timer_io</span><span class="p">.</span><span class="n">run</span><span class="p">();</span></code></pre></figure>
+
+<p>You can find the full code of the example above and run it <a href="https://wandbox.org/permlink/AJPcQAiT5pOdZhWs">here</a>. 
+There are some things that are worth mentioning. Every <code class="language-plaintext highlighter-rouge">deadline_timer</code> needs an <code class="language-plaintext highlighter-rouge">io_service</code> to run. One or more timers can be assigned to the same IO service when they are created. Although the call to the method <code class="language-plaintext highlighter-rouge">async_wait()</code> is non-blocking, if we are going to run the <code class="language-plaintext highlighter-rouge">run()</code> method of the IO service, the main thread will be blocked. This means that we need to wrap the call to the IO service in another thread to fully exploit the deadline timer to generate a non-blocking loop.</p>
+
+<p>The example code above sets a deadline timer to fire after 5 seconds and calls the handler function <code class="language-plaintext highlighter-rouge">loop_function</code> after waiting. Hence, the timer only fires once, <code class="language-plaintext highlighter-rouge">timer_io.run()</code> returns and the program exits. To effectively run a loop, we need to re-arm the timer, and we can do this directly inside the <code class="language-plaintext highlighter-rouge">loop_function</code>.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="kt">void</span> <span class="nf">loop_function</span><span class="p">(</span><span class="k">const</span> <span class="n">boost</span><span class="o">::</span><span class="n">system</span><span class="o">::</span><span class="n">error_code</span><span class="o">&amp;</span> <span class="cm">/*e*/</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="c1">// Re-arm the timer</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">expires_from_now</span><span class="p">(</span><span class="n">boost</span><span class="o">::</span><span class="n">posix_time</span><span class="o">::</span><span class="n">seconds</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">async_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">loop_function</span><span class="p">);</span>
+
+    <span class="cm">/** User code **/</span>
+    <span class="n">std</span><span class="o">::</span><span class="n">cout</span> <span class="o">&lt;&lt;</span> <span class="s">"deadline_timer expired</span><span class="se">\n</span><span class="s">"</span><span class="p">;</span>
+    <span class="cm">/** User code **/</span>
+
+<span class="p">}</span></code></pre></figure>
+
+<p>In this way, the callback first resets the timer, and then it actually executes the user code. In this example, the timer object <code class="language-plaintext highlighter-rouge">t</code> must be a global variable, or we must use a global (shared) pointer. We may want to <em>hide</em> the code that handles the timer itself to the user and only provide a function that gets called at every cycle. If this is the case, we can wrap a user-defined loop function into the <em>actual</em> callback that gets called by the deadline timer.</p>
+
+<link rel="stylesheet" type="text/css" href="/gitbook/style2.css" />
+
+<div class="code-header">
+    <button class="copy-code-button" aria-label="Copy code to clipboard"></button>
+</div>
+
+<figure class="highlight"><pre><code class="language-cpp" data-lang="cpp"><span class="k">static</span> <span class="kt">void</span> <span class="nf">w_loop_function</span><span class="p">(</span><span class="k">const</span> <span class="n">boost</span><span class="o">::</span><span class="n">system</span><span class="o">::</span><span class="n">error_code</span><span class="o">&amp;</span> <span class="cm">/*e*/</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="c1">// Re-arm the timer</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">expires_from_now</span><span class="p">(</span><span class="n">boost</span><span class="o">::</span><span class="n">posix_time</span><span class="o">::</span><span class="n">seconds</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span>
+    <span class="n">t</span><span class="p">.</span><span class="n">async_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">w_loop_function</span><span class="p">);</span>
+
+    <span class="c1">// Call the user-defined loop function</span>
+    <span class="n">loop_function</span><span class="p">();</span>
+
+    <span class="c1">// Update the loop counter</span>
+    <span class="n">loop_counter</span><span class="o">++</span><span class="p">;</span>
+
+<span class="p">}</span>
+
+<span class="kt">void</span> <span class="n">loop_function</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="cm">/** User code **/</span>
+    <span class="n">std</span><span class="o">::</span><span class="n">cout</span> <span class="o">&lt;&lt;</span> <span class="s">"deadline_timer expired</span><span class="se">\n</span><span class="s">"</span><span class="p">;</span>
+    <span class="cm">/** User code **/</span>    
+
+<span class="p">}</span></code></pre></figure>
+
+<p>In this way, the <code class="language-plaintext highlighter-rouge">w_loop_function</code> can be hidden to the final user of our API, exposing only a template <code class="language-plaintext highlighter-rouge">loop_function</code> that can be defined as required by the application. In the case we may want to achieve a variable loop frequency, we could have a global variable to be used as the argument of the call <code class="language-plaintext highlighter-rouge">t.expires_from_now()</code>, or – even better – we could put everything into a class.</p>
+
+<p><a href="https://wandbox.org/permlink/J9SdvVP2DJVwUbks">This example</a> shows the implementation of a custom deadline timer class with a wrapped loop function to handle timer re-arming and benchmarking the effective cycle time duration. Moreover, it sets real-time priority (<code class="language-plaintext highlighter-rouge">sched_priority = 99</code>) with FIFO scheduling to the dedicated thread that runs the IO service.</p>
+
+<h2 id="why-the-f-is-this-slower-with-the-preempt_rt-kernel">Why the <em>f</em> is this <em>slower</em> with the PREEMPT_RT kernel?</h2>
+
+<p>That’s still an open question for me: when I initially started developing and testing the code based on the <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code>, I was using the mainline Linux kernel. I got very promising results, as the ones reported above, so I was thrilled when I first tested it on a custom kernel with the PREEMPT_RT patch. I was disappointed soon after.</p>
+
+<p><img src="/assets/img/dl_timer_preempt.png" alt="PREEMPT" /></p>
+
+<p>The loop is supposed to run at 1000 Hz, yet the average cycle time is 1.33 ms, with all the cycles failing to respect the 1 ms interval. <strong>Why</strong>? Well, <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code> is not <em>actually</em> using a hardware timer. The ASIO service created to run the <code class="language-plaintext highlighter-rouge">deadline_timer</code> asynchronously waits for the expire time, while letting other tasks and functions run in the meantime. At the expire time, the user-defined callback is executed. It is slower because the <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code> is a general-purpose timer implementation that is designed to work with any operating system and is not specifically optimized for real-time systems. Hence, it does not and cannot use real-time scheduling.</p>
+
+<h3 id="wrap-up">Wrap-up</h3>
+<p>The <code class="language-plaintext highlighter-rouge">boost::asio::deadline_timer</code> is a great and versatile approach to have <em>soft real-time</em> loop functions in a general-purpose OS. We can achieve a reliable 1000 Hz loop on the mainline Linux kernel. Of course, this does not guarantee limited and predictable latency, so for <em>hard real-time</em> applications we need the PREEMPT_RT patch and ad-hoc real-time software.</p>
+
+<h2 id="a-note-on-boost-and-portability">A note on Boost and portability</h2>
+
+<p>I am a fan of the Boost library, which I consider one of the best open-source projects. Yet, preparing the example code for this post I was a bit disappointed. I was familiar with <a href="">wandbox</a>, an online C++ compiler that lets you play around with the code, build it and run it online. It is great for sharing code with people and for quick demos, as I intended to do here. Wandbox lets you choose the compiler, and I chose <code class="language-plaintext highlighter-rouge">gcc 7.5.0</code>, the same I have installed on my machine. I could not choose the version of Boost, which is <code class="language-plaintext highlighter-rouge">1.75.0</code>. Linking <code class="language-plaintext highlighter-rouge">boost_thread</code> and <code class="language-plaintext highlighter-rouge">boost_system</code> works fine and the first example code run as smoothly as on my laptop (the output is buffered so it won’t update during the execution of the program…).</p>
+
+<p>Things went differently when I copy-pasted the code of the second example. Turns out <code class="language-plaintext highlighter-rouge">boost::posix_time::milliseconds()</code> cannot take a non-integer argument, and so my code could not compile on Wandbox. So basically, I need to convert to integer the cycle time <code class="language-plaintext highlighter-rouge">dt</code> before converting it to milliseconds, effectively limiting the frequency of the loops to 1000 Hz. Fortunately, I could change my code and use instead <code class="language-plaintext highlighter-rouge">boost::posix_time::microseconds()</code>, that limits the maximum loop frequency to 1 MHz. Although modern CPUs clock faster than 1 GHz, on my laptop I could not achieve a rate higher than 10 kHz with reliable cycle times.</p>
+
+<p>I further investigated what I believed was a portability issue. Newer versions of Boost, like the <code class="language-plaintext highlighter-rouge">1.75.0</code>, provide mostly header-only libraries that do not require compilation, which is great for a service like Wandbox as it reduces the computation cost of the build process. 
+It turns out that the difference between the two versions of Boost was indeed a bugfix that also fixed my code: <code class="language-plaintext highlighter-rouge">boost::posix_time::milliseconds()</code> (as well as <code class="language-plaintext highlighter-rouge">microseconds()</code> and <code class="language-plaintext highlighter-rouge">seconds()</code>) <em>could</em> take a non-integer argument, but then it could not convert it to the proper time, thus generating the wrong loop rate.</p>
+
+<div class="post-date">
+    
+    
+    <br />
+    <span class="post-date" style="color:#80a7ff">
+        Published on February 7, 2023 
+        
+        --- Last modified February 10, 2023
+        
+    </span>
+</div>
+
+                    </section>
+                </div><div class="search-results">
+    <div class="has-results">
+        <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+        <ul class="search-results-list"></ul>
+    </div>
+    <div class="no-results">
+        <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+    </div>
+</div></div>
+        </div>
+    </div>
+</div>
+
+                    <a href="https://mp1994.github.io/linux/2022-09-05-preempt-patch.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Real-time PREEMPT patch for the Linux Kernel">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+
+                
+            </div>
+
+            <script src="/assets/scripts/copyCode.js"></script>
+            <script>
+            var gitbook = gitbook || [];
+            gitbook.push(function() {
+                gitbook.page.hasChanged({
+    "page": {
+        "title": "Introduction",
+        "level": "1.1",
+        "depth": 1,
+        
+        "dir": "ltr"
+    },    "config": {
+        "plugins": ["fontsettings", "highlight", "livereload", "lunr", "search", "sharing", "theme-default", "livereload"],
+        "styles": {
+            "ebook": "styles/ebook.css",
+            "epub": "styles/epub.css",
+            "mobi": "styles/mobi.css",
+            "pdf": "styles/pdf.css",
+            "print": "styles/print.css",
+            "website": "styles/website.css"
+        },
+        "pluginsConfig": {
+            "fontsettings": {
+                "family": "sans",
+                "size": 2,
+                "theme": "white"
+            },
+            "highlight": {},
+            "livereload": {},
+            "lunr": {
+                "ignoreSpecialCharacters": false,
+                "maxIndexSize": 1000000
+            },
+            "search": {},
+            "sharing": {
+                "all": ["facebook", "google", "twitter", "weibo", "instapaper"],
+                "facebook": true,
+                "google": false,
+                "instapaper": false,
+                "twitter": true,
+                "vk": false,
+                "weibo": false
+            },
+            "theme-default": {
+                "showLevel": false,
+                "styles": {
+                    "ebook": "styles/ebook.css",
+                    "epub": "styles/epub.css",
+                    "mobi": "styles/mobi.css",
+                    "pdf": "styles/pdf.css",
+                    "print": "styles/print.css",
+                    "website": "styles/website.css"
+                }
+            }
+        },
+        "theme": "default",
+        "author": "Tao He",
+        "pdf": {
+            "pageNumbers": true,
+            "fontSize": 12,
+            "fontFamily": "Arial",
+            "paperSize": "a4",
+            "chapterMark": "pagebreak",
+            "pageBreaksBefore": "/",
+            "margin": {
+                "right": 62,
+                "left": 62,
+                "top": 56,
+                "bottom": 56
+            }
+        },
+        "structure": {
+            "langs": "LANGS.md",
+            "readme": "README.md",
+        },
+        "variables": {},
+        "title": "Mattically",
+        "language": "en",
+        "gitbook": "*"
+    },
+    "file": {
+        "path": "_posts/2023-02-07-deterministic-loops.md",
+        "mtime": "2023-02-07 00:00:00 +0000",
+        "type": "markdown"
+    },
+    "gitbook": {
+        "version": "3.2.3",
+        "time": "2023-02-10 11:55:32 +0000"
+    },
+    "basePath": "https://mp1994.github.io",
+    "book": {
+        "language": ""
+    }
+});
+            });
+            </script>
+        </div><script src="https://mp1994.github.io/gitbook/gitbook.js"></script>
+<script src="https://mp1994.github.io/gitbook/theme.js"></script>
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-sharing/buttons.js"></script>
+
+<!-- <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+<script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+<script src="../gitbook/gitbook-plugin-search/search.js"></script> -->
+
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/jquery.mark.min.js"></script>
+<script src="https://mp1994.github.io/gitbook/gitbook-plugin-search-pro/search.js"></script>
+
+<script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<script async src="//static.getclicky.com/101356528.js"></script>
+<noscript><p><img alt="Clicky" width="1" height="1" src="//in.getclicky.com/101356528ns.gif" /></p></noscript>
+</body>
+</html>
