@@ -108,7 +108,18 @@ In this way, the `w_loop_function` can be hidden to the final user of our API, e
 
 [This example](https://wandbox.org/permlink/J9SdvVP2DJVwUbks) shows the implementation of a custom deadline timer class with a wrapped loop function to handle timer re-arming and benchmarking the effective cycle time duration. Moreover, it sets real-time priority (`sched_priority = 99`) with FIFO scheduling to the dedicated thread that runs the IO service.
 
-### A note on Boost and portability
+## Why the *f* is this *slower* with the PREEMPT_RT kernel?
+
+That's still an open question for me: when I initially started developing and testing the code based on the `boost::asio::deadline_timer`, I was using the mainline Linux kernel. I got very promising results, as the ones reported above, so I was thrilled when I first tested it on a custom kernel with the PREEMPT_RT patch. I was disappointed soon after.
+
+![PREEMPT](/assets/img/dl_timer_preempt.png)
+
+The loop is supposed to run at 1000 Hz, yet the average cycle time is 1.33 ms, with all the cycles failing to respect the 1 ms interval. **Why**? Well, `boost::asio::deadline_timer` is not *actually* using a hardware timer. The ASIO service created to run the `deadline_timer` asynchronously waits for the expire time, while letting other tasks and functions run in the meantime. At the expire time, the user-defined callback is executed. It is slower because the `boost::asio::deadline_timer` is a general-purpose timer implementation that is designed to work with any operating system and is not specifically optimized for real-time systems. Hence, it does not and cannot use real-time scheduling.
+
+### Wrap-up 
+The `boost::asio::deadline_timer` is a great and versatile approach to have *soft real-time* loop functions in a general-purpose OS. We can achieve a reliable 1000 Hz loop on the mainline Linux kernel. Of course, this does not guarantee limited and predictable latency, so for *hard real-time* applications we need the PREEMPT_RT patch and ad-hoc real-time software.
+
+## A note on Boost and portability
 
 I am a fan of the Boost library, which I consider one of the best open-source projects. Yet, preparing the example code for this post I was a bit disappointed. I was familiar with [wandbox](), an online C++ compiler that lets you play around with the code, build it and run it online. It is great for sharing code with people and for quick demos, as I intended to do here. Wandbox lets you choose the compiler, and I chose `gcc 7.5.0`, the same I have installed on my machine. I could not choose the version of Boost, which is `1.75.0`. Linking `boost_thread` and `boost_system` works fine and the first example code run as smoothly as on my laptop (the output is buffered so it won't update during the execution of the program...).
 
@@ -116,3 +127,5 @@ Things went differently when I copy-pasted the code of the second example. Turns
 
 I further investigated what I believed was a portability issue. Newer versions of Boost, like the `1.75.0`, provide mostly header-only libraries that do not require compilation, which is great for a service like Wandbox as it reduces the computation cost of the build process. 
 It turns out that the difference between the two versions of Boost was indeed a bugfix that also fixed my code: `boost::posix_time::milliseconds()` (as well as `microseconds()` and `seconds()`) *could* take a non-integer argument, but then it could not convert it to the proper time, thus generating the wrong loop rate.
+
+{% include date.html %}
